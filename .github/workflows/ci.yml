@@ -11,7 +11,6 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        # vitest and tsdown need Node 22.12+, so the full suite runs here only
         node-version: [22, 24, 26]
     steps:
       - uses: actions/checkout@v7
@@ -31,8 +30,6 @@ jobs:
           name: dist
           path: dist/
 
-  # The package supports Node >= 18, where vitest cannot run.
-  # Load the dist built above through both import and require, with no dependencies installed.
   compat:
     needs: test
     runs-on: ubuntu-latest

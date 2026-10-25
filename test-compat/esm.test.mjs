@@ -1,4 +1,3 @@
-// Runs on Node 18 and 20 against the built dist, without vitest (which needs Node 22.12+).
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 

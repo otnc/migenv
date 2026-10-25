@@ -1,7 +1,6 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    // Node 18 lacks ES2023+ built-ins such as toSorted and Object.groupBy
     "lib": ["ES2022"],
     "types": ["node"],
     "module": "ESNext",

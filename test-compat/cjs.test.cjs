@@ -1,4 +1,3 @@
-// Runs on Node 18 and 20 against the built dist, without vitest (which needs Node 22.12+).
 const assert = require('node:assert/strict')
 const { test } = require('node:test')
 

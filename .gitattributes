@@ -1,6 +1,3 @@
-# Normalize text files to LF so Biome's formatter (which writes LF) never disagrees with the
-# checkout on Windows.
 * text=auto eol=lf
 
-# Fixtures test CRLF, BOM and missing final newlines, so git must not touch their bytes.
 test/fixtures/** -text
