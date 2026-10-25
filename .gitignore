@@ -1,0 +1,31 @@
+# Dependencies and build output
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+*.tgz
+
+# Local env files (templates are committed)
+.env
+.env.*
+!.env.example
+!.env.*.example
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
+!.dev.vars.*.example
+
+# Backups written by migenv
+*.bak.*
+.migenv/
+
+# Private notes and local agent instructions
+.private/
+CLAUDE.local.md
+
+# Logs
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db

@@ -1,0 +1,51 @@
+name: ci
+
+on:
+  push:
+    branches: [main, release/*]
+  pull_request:
+    branches: [main, release/*]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # vitest and tsdown need Node 22.12+, so the full suite runs here only
+        node-version: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+      - run: npm ci
+      - run: npm run ci
+      - run: npm run typecheck
+      - run: npm run test
+      - run: npm run build
+      - run: npm run lint:pkg
+      - if: matrix.node-version == 24
+        uses: actions/upload-artifact@v7
+        with:
+          name: dist
+          path: dist/
+
+  # The package supports Node >= 18, where vitest cannot run.
+  # Load the dist built above through both import and require, with no dependencies installed.
+  compat:
+    needs: test
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [18, 20]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node-version }}
+      - uses: actions/download-artifact@v8
+        with:
+          name: dist
+          path: dist/
+      - run: npm run test:compat

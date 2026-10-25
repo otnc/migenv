@@ -1,0 +1,89 @@
+{
+  "name": "migenv",
+  "version": "0.0.0",
+  "description": "Migrate .env and .dev.vars files to match their .example templates without changing existing values.",
+  "keywords": [
+    "dotenv",
+    "env",
+    "env-example",
+    "dev-vars",
+    "wrangler",
+    "cloudflare-workers",
+    "migrate",
+    "sync",
+    "template",
+    "cli"
+  ],
+  "homepage": "https://github.com/otnc/migenv#readme",
+  "bugs": {
+    "url": "https://github.com/otnc/migenv/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/otnc/migenv.git"
+  },
+  "license": "MIT",
+  "author": "otoneko.",
+  "type": "module",
+  "sideEffects": false,
+  "main": "dist/core/index.cjs",
+  "module": "dist/core/index.mjs",
+  "types": "dist/core/index.d.mts",
+  "exports": {
+    ".": {
+      "types": {
+        "import": "./dist/core/index.d.mts",
+        "require": "./dist/core/index.d.cts"
+      },
+      "import": "./dist/core/index.mjs",
+      "require": "./dist/core/index.cjs"
+    },
+    "./node": {
+      "types": {
+        "import": "./dist/node/index.d.mts",
+        "require": "./dist/node/index.d.cts"
+      },
+      "import": "./dist/node/index.mjs",
+      "require": "./dist/node/index.cjs"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:compat": "node --test test-compat/esm.test.mjs test-compat/cjs.test.cjs",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome lint && eslint",
+    "lint:fix": "biome lint --write",
+    "lint:pkg": "publint && attw --pack . --profile node16",
+    "format": "biome format --write",
+    "format:check": "biome format",
+    "check": "biome check --write",
+    "ci": "biome ci && eslint",
+    "prepublishOnly": "npm run build"
+  },
+  "devDependencies": {
+    "@arethetypeswrong/cli": "^0.18.5",
+    "@biomejs/biome": "^2.6.3",
+    "@fast-check/vitest": "^0.5.0",
+    "@types/node": "^24.19.2",
+    "@vitest/coverage-v8": "^5.0.5",
+    "dotenv": "^18.0.9",
+    "eslint": "^10.13.0",
+    "eslint-plugin-n": "^18.5.0",
+    "fast-check": "^4.10.2",
+    "publint": "^0.3.25",
+    "tsdown": "^0.23.2",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.72.0",
+    "vitest": "^5.0.5"
+  }
+}
