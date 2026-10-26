@@ -18,12 +18,11 @@
     "cf-pages",
     "cf-workers",
     "cloudflare",
-    "cloudfalre-pages",
+    "cloudflare-pages",
     "cloudflare-workers",
     "migrate",
     "sync",
-    "template",
-    "cli"
+    "template"
   ],
   "homepage": "https://github.com/otnc/migenv#readme",
   "bugs": {
