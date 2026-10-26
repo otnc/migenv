@@ -18,7 +18,7 @@ export interface MigenvOptions {
   readonly reorder?: boolean | undefined
   /** Use the template's value when the current value is empty. Default `true`. */
   readonly useTemplateDefaults?: boolean | undefined
-  /** Comment placed above the keys that are not in the template, or `false` for none. */
+  /** Comment placed above the keys that are not in the template, or `false` for none. Default `'# ---- Not in template (review manually) ----'`. */
   readonly extrasHeader?: string | false | undefined
   /** Line ending of the output. Default `'template'`. */
   readonly newline?: 'template' | 'current' | 'lf' | 'crlf' | undefined
@@ -127,6 +127,8 @@ function isValidValue(name: string, value: unknown): boolean | undefined {
         typeof value === 'function' ||
         (Array.isArray(value) && value.every((item) => typeof item === 'string'))
       )
+    // Every other option must have the same type as its default.
+    // An option that accepts more than one type needs its own case above.
     default:
       return Object.hasOwn(DEFAULT_OPTIONS, name)
         ? typeof value === typeof DEFAULT_OPTIONS[name as keyof typeof DEFAULT_OPTIONS]
