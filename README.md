@@ -145,10 +145,9 @@ A line that cannot be parsed, such as one with an unclosed quote, is kept as it 
 
 ## What migenv does not do
 
-- Load environment variables. Putting them into `process.env` is the job of dotenv, Node.js's `--env-file` or Wrangler.
-- Validate values at run time. Leave types and formats to envalid or zod.
-- Manage or encrypt secrets. Leave that to dotenvx, 1Password or Vault.
-- Scan source code. Checking that every `process.env.X` is in `.env.example` is what dotenv-align does.
+- Load environment variables. Putting them into `process.env` is the job of [dotenv](https://github.com/motdotla/dotenv), Node.js's [`--env-file`](https://nodejs.org/api/cli.html#--env-filefile) or [Wrangler](https://developers.cloudflare.com/workers/configuration/environment-variables/).
+- Validate values at run time. Leave types and formats to [envalid](https://github.com/af/envalid) or [zod](https://zod.dev).
+- Manage or encrypt secrets. Leave that to [dotenvx](https://dotenvx.com), [1Password](https://developer.1password.com/docs/cli/secrets-environment-variables/) or [Vault](https://developer.hashicorp.com/vault).
 
 ## License
 

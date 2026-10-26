@@ -273,18 +273,16 @@ A line that cannot be parsed, such as one with an unclosed quote, is kept as it 
 :::kiritan{locale=en}
 ## What migenv does not do
 
-- Load environment variables. Putting them into `process.env` is the job of dotenv, Node.js's `--env-file` or Wrangler.
-- Validate values at run time. Leave types and formats to envalid or zod.
-- Manage or encrypt secrets. Leave that to dotenvx, 1Password or Vault.
-- Scan source code. Checking that every `process.env.X` is in `.env.example` is what dotenv-align does.
+- Load environment variables. Putting them into `process.env` is the job of [dotenv](https://github.com/motdotla/dotenv), Node.js's [`--env-file`](https://nodejs.org/api/cli.html#--env-filefile) or [Wrangler](https://developers.cloudflare.com/workers/configuration/environment-variables/).
+- Validate values at run time. Leave types and formats to [envalid](https://github.com/af/envalid) or [zod](https://zod.dev).
+- Manage or encrypt secrets. Leave that to [dotenvx](https://dotenvx.com), [1Password](https://developer.1password.com/docs/cli/secrets-environment-variables/) or [Vault](https://developer.hashicorp.com/vault).
 :::
 :::kiritan{locale=ja}
 ## やらないこと
 
-- 環境変数の読み込み。`process.env` に入れるのは dotenv や Node.js の `--env-file`、Wrangler の役目です
-- 実行時の値の検証。型や形式の検査は envalid や zod に任せます
-- 秘密の管理と暗号化。dotenvx や 1Password、Vault に任せます
-- ソースコードの走査。`process.env.X` が `.env.example` にあるかを調べるのは dotenv-align の役目です
+- 環境変数の読み込み。`process.env` に入れるのは [dotenv](https://github.com/motdotla/dotenv) や Node.js の [`--env-file`](https://nodejs.org/api/cli.html#--env-filefile)、[Wrangler](https://developers.cloudflare.com/workers/configuration/environment-variables/) の役目です
+- 実行時の値の検証。型や形式の検査は [envalid](https://github.com/af/envalid) や [zod](https://zod.dev) に任せます
+- 秘密の管理と暗号化。[dotenvx](https://dotenvx.com) や [1Password](https://developer.1password.com/docs/cli/secrets-environment-variables/)、[Vault](https://developer.hashicorp.com/vault) に任せます
 :::
 
 :::kiritan{locale=en}
