@@ -1,3 +1,10 @@
+export {
+  type AlignResult,
+  align,
+  type ProtectedSkip,
+  type Warning,
+  type WarningCode,
+} from './align'
 export { MigenvError, type MigenvErrorCode } from './errors'
 export {
   DEFAULT_OPTIONS,
