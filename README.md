@@ -148,7 +148,7 @@ migenv reads quotes the way dotenv does, so a quoted value whose closing quote c
 ## What migenv does not do
 
 - Load environment variables. Putting them into `process.env` is the job of [dotenv](https://github.com/motdotla/dotenv), Node.js's [`--env-file`](https://nodejs.org/api/cli.html#--env-filefile) or [Wrangler](https://developers.cloudflare.com/workers/configuration/environment-variables/).
-- Validate values at run time. Leave types and formats to [envalid](https://github.com/af/envalid) or [zod](https://zod.dev).
+- Validate values at run time. Leave types and formats to [envalid](https://github.com/af/envalid), [zod](https://zod.dev) or [Valibot](https://valibot.dev).
 - Manage or encrypt secrets. Leave that to [dotenvx](https://dotenvx.com), [1Password](https://developer.1password.com/docs/cli/secrets-environment-variables/) or [Vault](https://developer.hashicorp.com/vault).
 
 ## License

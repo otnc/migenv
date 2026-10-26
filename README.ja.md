@@ -146,7 +146,7 @@ migenv はクォートを dotenv と同じように読みます。そのため�
 ## やらないこと
 
 - 環境変数の読み込み。`process.env` に入れるのは [dotenv](https://github.com/motdotla/dotenv) や Node.js の [`--env-file`](https://nodejs.org/api/cli.html#--env-filefile)、[Wrangler](https://developers.cloudflare.com/workers/configuration/environment-variables/) の役目です
-- 実行時の値の検証。型や形式の検査は [envalid](https://github.com/af/envalid) や [zod](https://zod.dev) に任せます
+- 実行時の値の検証。型や形式の検査は [envalid](https://github.com/af/envalid)、[zod](https://zod.dev)、[Valibot](https://valibot.dev) に任せます
 - 秘密の管理と暗号化。[dotenvx](https://dotenvx.com) や [1Password](https://developer.1password.com/docs/cli/secrets-environment-variables/)、[Vault](https://developer.hashicorp.com/vault) に任せます
 
 ## ライセンス
