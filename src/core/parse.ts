@@ -59,7 +59,7 @@ export function parse(text: string): EnvDocument {
 
   return {
     nodes,
-    newline: body.includes('\r\n') ? '\r\n' : '\n',
+    newline: nodes.some((node) => node.eol === '\r\n') ? '\r\n' : '\n',
     bom,
     finalNewline: lines.length > 0 && lines[lines.length - 1]?.eol !== '',
   }
