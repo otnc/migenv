@@ -39,6 +39,7 @@ export interface EnvDocument {
 const BOM = '\uFEFF'
 const KEY_PATTERN = /^\s*(export\s+)?([A-Za-z_][A-Za-z0-9_.-]*)\s*=/
 const QUOTES = new Set(['"', "'", '`'])
+const COMMENTED_OUT_KEY = /^\s*#\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_.-]*)\s*=/
 
 interface Line {
   readonly text: string
@@ -63,6 +64,11 @@ export function parse(text: string): EnvDocument {
     bom,
     finalNewline: lines.length > 0 && lines[lines.length - 1]?.eol !== '',
   }
+}
+
+/** The key of a commented-out entry such as `# SENTRY_DSN=`, which templates use for optional keys. */
+export function commentedOutKey(node: CommentNode): string | undefined {
+  return COMMENTED_OUT_KEY.exec(node.raw)?.[1]
 }
 
 export function stringify(doc: EnvDocument): string {
