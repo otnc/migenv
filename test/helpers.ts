@@ -1,4 +1,5 @@
 import { fc } from '@fast-check/vitest'
+import type { MigenvOptions } from '../src/core/options'
 import { type EntryNode, parse } from '../src/core/parse'
 
 export function entriesOf(text: string): EntryNode[] {
@@ -70,3 +71,21 @@ export const envText: fc.Arbitrary<string> = joinLines(wellFormedLine)
 
 /** Arbitrary text, including lines that do not parse. */
 export const anyText: fc.Arbitrary<string> = joinLines(anyLine)
+
+/** Random combinations of the options that change how `align` writes its output. */
+export const alignOptions: fc.Arbitrary<MigenvOptions> = fc.record(
+  {
+    add: fc.boolean(),
+    remove: fc.boolean(),
+    reorder: fc.boolean(),
+    useTemplateDefaults: fc.boolean(),
+    extrasHeader: fc.constantFrom(false as const, '# extra'),
+    newline: fc.constantFrom(
+      'template' as const,
+      'current' as const,
+      'lf' as const,
+      'crlf' as const,
+    ),
+  },
+  { requiredKeys: [] },
+)
