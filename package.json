@@ -1,6 +1,6 @@
 {
   "name": "migenv",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Migrate .env and .dev.vars files to match their .example templates without changing existing values.",
   "keywords": [
     "dotenv",
