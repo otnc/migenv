@@ -20,7 +20,7 @@ describe('diff', () => {
     })
   })
 
-  it('ignores keys that the template only lacks in the shared order', () => {
+  it('compares the order only among keys that both files have', () => {
     expect(diff('X=1\nA=1\nB=2\n', 'A=\nY=\nB=\n').orderDiffers).toBe(false)
   })
 

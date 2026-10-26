@@ -45,9 +45,12 @@ describe('resolveOptions', () => {
     expect(resolveOptions({ protect: [pattern] }).isProtected(key, '')).toBe(matches)
   })
 
-  it.each([{ remvoe: true }, { add: 'yes' }, { newline: 'cr' }])('rejects %o', (options) => {
-    expect(() => resolveOptions(options as unknown as MigenvOptions)).toThrow(
-      expect.objectContaining({ code: 'INVALID_OPTION' }),
-    )
-  })
+  it.each<object>([{ remvoe: true }, { add: 'yes' }, { newline: 'cr' }, { toString: 'x' }])(
+    'rejects %o',
+    (options) => {
+      expect(() => resolveOptions(options as unknown as MigenvOptions)).toThrow(
+        expect.objectContaining({ code: 'INVALID_OPTION' }),
+      )
+    },
+  )
 })
