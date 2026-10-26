@@ -13,8 +13,9 @@ import {
 /**
  * `'unknown-line'`: a line could not be parsed. `'duplicate-key'`: a key appears more than once in the current file.
  * `'protected'`: `protect` stopped an action, which is also listed in `AlignResult.protectedSkips`.
+ * `'ambiguous-quote'`: the result would change how a quoted value reads, so `align` returned `current` unchanged.
  */
-export type WarningCode = 'unknown-line' | 'duplicate-key' | 'protected'
+export type WarningCode = 'unknown-line' | 'duplicate-key' | 'protected' | 'ambiguous-quote'
 
 /** Something worth telling the user. Messages never contain values. */
 export interface Warning {
@@ -105,9 +106,44 @@ export function align(current: string, template: string, options?: MigenvOptions
     report,
   }
   const nodes = resolved.reorder ? followTemplate(context) : keepCurrentOrder(context)
-  const text = stringify(finishDocument(nodes, context))
+  const output = finishDocument(nodes, context)
+  const text = stringify(output)
+  if (!readsBackAs(text, output)) return leftUnchanged(current, report.warnings)
 
   return { text, changed: text !== current, ...report }
+}
+
+/**
+ * A quoted value whose closing quote follows a backslash reaches into the lines after it, so moving lines around it can make it swallow them.
+ * Only output that parses back into the nodes it was built from is safe to return.
+ */
+function readsBackAs(text: string, expected: EnvDocument): boolean {
+  const actual = parse(text).nodes
+  return (
+    actual.length === expected.nodes.length &&
+    actual.every((node, i) => node.raw === expected.nodes[i]?.raw)
+  )
+}
+
+function leftUnchanged(current: string, warnings: readonly Warning[]): AlignResult {
+  return {
+    text: current,
+    changed: false,
+    added: [],
+    extra: [],
+    removed: [],
+    protectedSkips: [],
+    droppedComments: [],
+    warnings: [
+      ...warnings,
+      {
+        code: 'ambiguous-quote',
+        source: 'current',
+        message:
+          'The file was left unchanged: a quoted value whose closing quote follows a backslash would read differently after aligning.',
+      },
+    ],
+  }
 }
 
 function checkUnknownLines(

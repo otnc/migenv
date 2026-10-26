@@ -1,4 +1,4 @@
-import { test } from '@fast-check/vitest'
+import { fc, test } from '@fast-check/vitest'
 import { describe, expect, it } from 'vitest'
 import { alignOptions, anyText, entriesOf, envText } from '../../test/helpers'
 import { align } from './align'
@@ -45,6 +45,14 @@ describe('align', () => {
     const [warning] = align('A=1\nTOKEN="abc\n', 'A=\n').warnings
     expect(warning).toMatchObject({ code: 'unknown-line', source: 'current', line: 2 })
     expect(warning?.message).not.toContain('abc')
+  })
+
+  it('leaves the file unchanged when moving a value would change how it reads', () => {
+    // After reordering, `A`'s closing quote (right after a backslash) would reach the opening quote of `B`.
+    const current = 'B="\nx"\nA="C:\\tools\\"\n'
+    const result = align(current, 'A=\nB=\n')
+    expect(result).toMatchObject({ text: current, changed: false, added: [] })
+    expect(result.warnings.map((warning) => warning.code)).toEqual(['ambiguous-quote'])
   })
 
   it('throws on unknown lines with strict: true', () => {
@@ -104,8 +112,10 @@ describe('align properties', () => {
   )
 
   test.prop([envText, envText])('puts template keys in template order', (current, template) => {
+    const result = align(current, template)
+    fc.pre(!result.warnings.some((warning) => warning.code === 'ambiguous-quote'))
     const templateKeys = [...new Set(entriesOf(template).map((entry) => entry.key))]
-    const outputKeys = entriesOf(align(current, template).text)
+    const outputKeys = entriesOf(result.text)
       .map((entry) => entry.key)
       .filter((key) => templateKeys.includes(key))
     expect(outputKeys).toEqual(templateKeys)
