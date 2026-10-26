@@ -23,6 +23,8 @@ CLAUDE.local.md
 .claude/skills/
 
 npm-debug.log*
+__pycache__/
 
 .DS_Store
 Thumbs.db
+local.kiritanconfig
