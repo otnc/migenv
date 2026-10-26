@@ -66,9 +66,24 @@ OLD_API_KEY=abc123
 npm install --save-dev migenv
 ```
 
-Node.js 18 以降で動きます。ESM と CommonJS の両方で配布していて、それぞれに TypeScript の型定義が付いています。
+Node.js 18.3 以降で動きます。API は ESM と CommonJS の両方で配布していて、それぞれに TypeScript の型定義が付いています。
 
 ## 使い方
+
+### コマンドライン
+
+```sh
+npx migenv              # .env を .env.example に揃える ("migenv align" と同じ)
+npx migenv check        # .env がずれていれば exit 1 で終える。CI 用
+npx migenv diff         # align で何が変わるかを表示する
+npx migenv align .env.local --remove --protect SESSION_SECRET --backup
+```
+
+各ファイルは `<ファイル>.example` に揃えます。それがなければ、ファイル名の最後の拡張子を外して探し直すので、`.env.local` は `.env.example` を使います。テンプレートを自分で決めるときは `-t, --template <パス>` を渡します。パスは migenv を実行したディレクトリが基準です。`check` と `diff` は何も書き換えず、どのコマンドも値を表示しません。
+
+フラグは下のオプションに対応しています。`--no-add`、`--remove`、`-p, --protect <キー>` (カンマ区切りか、繰り返して指定)、`--no-reorder`、`--no-template-defaults`、`--newline <template|current|lf|crlf>`、`--duplicates <last|first|error>`、`--strict` と、`align` だけで使える `--backup`、`--backup-dir <ディレクトリ>`、`--create`、`--dry-run` です。`--remove` はキーを消す前に確認します。CI のように答えられない場面では `--yes` を付けてください。
+
+終了コードは、成功なら 0、`check` でずれが見つかれば 1、使い方の誤り、ファイルやテンプレートがない、解釈に失敗したときは 2 です。表示は英語か日本語で、`--lang <en|ja>`、`LC_ALL`、`LC_MESSAGES`、`LANG` の順に見て決めます。
 
 ### ファイルを書き換える
 

@@ -1,6 +1,6 @@
 # AGENTS.md
 
-migenv is an npm package that brings `.env` and `.dev.vars` files in line with their templates (`.env.example` and the like) without changing any existing non-empty value. It has two entry points: `migenv` (`src/core`, string-only) and `migenv/node` (`src/node`, file system).
+migenv is an npm package that brings `.env` and `.dev.vars` files in line with their templates (`.env.example` and the like) without changing any existing non-empty value. It has two library entry points, `migenv` (`src/core`, string-only) and `migenv/node` (`src/node`, file system), and a `migenv` command (`src/cli`).
 
 [CONTRIBUTING.md](CONTRIBUTING.md) is the full guide. Read its "How the code is organized" and "Rules the code keeps" sections before changing `src/`.
 
@@ -17,13 +17,14 @@ Run `npm run ci && npm run typecheck && npm run test` before saying a change is 
 
 ## Things that are easy to get wrong
 
-- The published package supports Node 18, but development runs on Node 24. In `src/`, do not use APIs that Node 18 lacks; ESLint (`n/no-unsupported-features/...`) and `lib: ES2022` in `tsconfig.json` (`TS2550`) catch most of them. Tests are exempt.
+- The published package supports Node 18.3 and later (citty needs `util.parseArgs`), but development runs on Node 24. In `src/`, do not use APIs that Node 18 lacks; ESLint (`n/no-unsupported-features/...`) and `lib: ES2022` in `tsconfig.json` (`TS2550`) catch most of them. Tests are exempt.
 - `isolatedDeclarations` is on, so every exported function and constant needs an explicit type. `TS90xx` errors mean one is missing.
 - `exactOptionalPropertyTypes` is on. Option properties are typed `T | undefined` on purpose, because `undefined` means "not set".
 - Never put a value from an env file into a warning, an error message or a log.
 - `src/core` must not import from `node:*`.
 - Fixture files must not be named `.env*`, because `.gitignore` ignores those.
-- Every new source file must be exported from `src/core/index.ts` or `src/node/index.ts`, or the build leaves it out.
+- Every new source file must be exported from `src/core/index.ts` or `src/node/index.ts`, or imported from `src/cli/bin.ts`, or the build leaves it out.
+- Every message the CLI prints lives in `src/cli/messages.i18n.ts` with both `en` and `ja`. `npm run docs:check` fails when one is missing.
 - `README.md` and `README.ja.md` are generated. Edit `base/README.base.md`, then run `npm run docs:build` and `npm run docs:check`.
 
 ## Skills

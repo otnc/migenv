@@ -54,4 +54,6 @@ jobs:
         with:
           name: dist
           path: dist/
+      # The CLI needs its runtime dependencies. The dev tools need Node 22 or later, so they are left out.
+      - run: npm ci --omit=dev
       - run: npm run test:compat

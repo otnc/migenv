@@ -39,7 +39,7 @@ npm run ci && npm run typecheck && npm run test && npm run build && npm run lint
 
 ## How the code is organized
 
-The package has two entry points, and every file you add must be exported from one of them or the build leaves it out.
+The package has two library entry points and a command, and every file you add must be reachable from one of them or the build leaves it out.
 
 | Path | Entry | What it holds |
 | --- | --- | --- |
@@ -49,8 +49,10 @@ The package has two entry points, and every file you add must be exported from o
 | `src/core/diff.ts` | `migenv` | `diff`: reports what `align` would change, without changing it |
 | `src/core/errors.ts` | `migenv` | `MigenvError` and its codes |
 | `src/node/file.ts` | `migenv/node` | `migrateFile` and `writeFileAtomic` |
+| `src/cli/main.ts` | `migenv` command | The `align`, `check` and `diff` commands, built with citty |
+| `src/cli/messages.i18n.ts` | `migenv` command | Every message the CLI prints, in English and Japanese |
 
-`src/core` only works on strings and must not import any Node API, so it stays usable outside Node. File system code belongs in `src/node`.
+`src/core` only works on strings and must not import any Node API, so it stays usable outside Node. File system code belongs in `src/node`. The CLI in `src/cli` ships as ESM only, because citty is ESM only, and takes everything from the process through `CliIo` so that tests can run it in a temporary directory.
 
 ## Rules the code keeps
 

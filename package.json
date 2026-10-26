@@ -22,7 +22,8 @@
     "cloudflare-workers",
     "migrate",
     "sync",
-    "template"
+    "template",
+    "cli"
   ],
   "homepage": "https://github.com/otnc/migenv#readme",
   "bugs": {
@@ -58,18 +59,21 @@
     },
     "./package.json": "./package.json"
   },
+  "bin": {
+    "migenv": "dist/cli/index.mjs"
+  },
   "files": [
     "dist"
   ],
   "engines": {
-    "node": ">=18"
+    "node": ">=18.3"
   },
   "scripts": {
     "build": "tsdown",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "test:compat": "node --test test-compat/esm.test.mjs test-compat/cjs.test.cjs",
+    "test:compat": "node --test test-compat/esm.test.mjs test-compat/cjs.test.cjs test-compat/cli.test.mjs",
     "typecheck": "tsc --noEmit",
     "lint": "eslint",
     "lint:fix": "eslint --fix",
@@ -82,6 +86,11 @@
     "docs:check": "kiritan check && kiritan verify",
     "prepublishOnly": "npm run build"
   },
+  "dependencies": {
+    "@kiritan/runtime": "^0.3.0",
+    "citty": "^0.2.2",
+    "consola": "^3.4.2"
+  },
   "devDependencies": {
     "@arethetypeswrong/cli": "^0.18.5",
     "@eslint/js": "^10.0.1",
@@ -93,7 +102,7 @@
     "eslint-plugin-n": "^18.5.0",
     "fast-check": "^4.10.2",
     "globals": "^17.13.0",
-    "kiritan": "^0.6.1",
+    "kiritan": "^0.7.1",
     "prettier": "^3.9.10",
     "publint": "^0.3.25",
     "tsdown": "^0.23.2",
