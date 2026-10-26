@@ -55,7 +55,7 @@ export async function migrateFile(
 ): Promise<MigrateFileResult> {
   const { create, dryRun, backup, backupDir } = resolveOptions(options)
   const templateText = await readFile(template, 'utf8')
-  const currentText = await readFileIfExists(file)
+  const currentText = await unlessMissing(readFile(file, 'utf8'), undefined)
   if (currentText === undefined && !create) {
     throw new MigenvError(
       'FILE_NOT_FOUND',
@@ -83,8 +83,11 @@ export async function migrateFile(
  * await writeFileAtomic('.env', 'API_KEY=abc\n')
  */
 export async function writeFileAtomic(path: string, text: string): Promise<void> {
-  const target = await resolveSymlinks(path)
-  const mode = (await existingMode(target)) ?? PRIVATE_MODE
+  const target = await unlessMissing(realpath(path), path)
+  const mode = await unlessMissing(
+    stat(target).then((stats) => stats.mode & 0o777),
+    PRIVATE_MODE,
+  )
   const temp = join(dirname(target), `.${basename(target)}.${randomBytes(6).toString('hex')}.tmp`)
   try {
     await writeFile(temp, text, { mode, flag: 'wx' })
@@ -93,15 +96,6 @@ export async function writeFileAtomic(path: string, text: string): Promise<void>
     await renameWithRetry(temp, target)
   } catch (error) {
     await rm(temp, { force: true })
-    throw error
-  }
-}
-
-async function readFileIfExists(path: string): Promise<string | undefined> {
-  try {
-    return await readFile(path, 'utf8')
-  } catch (error) {
-    if (hasErrorCode(error, 'ENOENT')) return undefined
     throw error
   }
 }
@@ -116,20 +110,12 @@ async function backUp(file: string, backupDir: string | undefined): Promise<stri
   return backupPath
 }
 
-async function resolveSymlinks(path: string): Promise<string> {
+/** Resolves to `fallback` instead of rejecting when the path does not exist. */
+async function unlessMissing<T, F>(promise: Promise<T>, fallback: F): Promise<T | F> {
   try {
-    return await realpath(path)
+    return await promise
   } catch (error) {
-    if (hasErrorCode(error, 'ENOENT')) return path
-    throw error
-  }
-}
-
-async function existingMode(path: string): Promise<number | undefined> {
-  try {
-    return (await stat(path)).mode & 0o777
-  } catch (error) {
-    if (hasErrorCode(error, 'ENOENT')) return undefined
+    if (hasErrorCode(error, 'ENOENT')) return fallback
     throw error
   }
 }
