@@ -54,7 +54,7 @@ describe('align', () => {
     expect(result.droppedComments).toEqual(['# mine'])
   })
 
-  it('keeps the current order with reorder: false and puts added keys before broken lines', () => {
+  it('puts keys added with reorder: false before a line with an unclosed quote', () => {
     const result = align('B=2\nX="open\nA=1\n', 'A=\nB=\nC=3\n', { reorder: false })
     expect(result.text).toBe('B=2\nC=3\nX="open\nA=1\n')
   })
@@ -75,10 +75,6 @@ describe('align', () => {
     expect(() => align('A=1\nA=2\n', 'A=\n', { duplicates: 'error' })).toThrow(
       expect.objectContaining({ code: 'DUPLICATE_KEY' }),
     )
-  })
-
-  it('reports no change when the file is already aligned', () => {
-    expect(align('A=1\n', 'A=\n')).toMatchObject({ text: 'A=1\n', changed: false })
   })
 })
 

@@ -23,7 +23,7 @@ const quotedValue = fc.oneof(
 )
 const inlineComment = fc.constantFrom('', ' # note', '#tight')
 
-export const entryLine: fc.Arbitrary<string> = fc
+const entryLine = fc
   .record({
     exported: fc.boolean(),
     key,
