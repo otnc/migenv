@@ -1,4 +1,4 @@
-import { lstat, mkdtemp, readdir, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises'
+import { chmod, lstat, mkdtemp, readdir, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -79,7 +79,7 @@ describe('writeFileAtomic', () => {
   it.skipIf(onWindows)(
     'keeps the mode of an existing file and uses 0o600 for a new one',
     async () => {
-      await writeFile(templatePath, 'A=\n', { mode: 0o640 })
+      await chmod(templatePath, 0o640)
       await writeFileAtomic(templatePath, 'A=1\n')
       expect((await stat(templatePath)).mode & 0o777).toBe(0o640)
 
