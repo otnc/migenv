@@ -68,21 +68,10 @@ export const DEFAULT_OPTIONS: Readonly<Omit<ResolvedOptions, 'isProtected' | 'ba
   dryRun: false,
 }
 
-const BOOLEAN_OPTIONS = new Set([
-  'add',
-  'remove',
-  'reorder',
-  'useTemplateDefaults',
-  'strict',
-  'backup',
-  'create',
-  'dryRun',
+const CHOICE_OPTIONS: ReadonlyMap<string, readonly string[]> = new Map([
+  ['newline', ['template', 'current', 'lf', 'crlf']],
+  ['duplicates', ['last', 'first', 'error']],
 ])
-
-const CHOICE_OPTIONS: Readonly<Record<string, readonly string[]>> = {
-  newline: ['template', 'current', 'lf', 'crlf'],
-  duplicates: ['last', 'first', 'error'],
-}
 
 /**
  * Fills in defaults. Later layers override earlier ones, `undefined` counts as not set, and `protect` is the union of every layer.
@@ -126,8 +115,7 @@ function validateOption(name: string, value: unknown): void {
 
 /** Returns `undefined` when `name` is not an option. */
 function isValidValue(name: string, value: unknown): boolean | undefined {
-  if (BOOLEAN_OPTIONS.has(name)) return typeof value === 'boolean'
-  const choices = CHOICE_OPTIONS[name]
+  const choices = CHOICE_OPTIONS.get(name)
   if (choices !== undefined) return typeof value === 'string' && choices.includes(value)
   switch (name) {
     case 'extrasHeader':
@@ -140,7 +128,9 @@ function isValidValue(name: string, value: unknown): boolean | undefined {
         (Array.isArray(value) && value.every((item) => typeof item === 'string'))
       )
     default:
-      return undefined
+      return Object.hasOwn(DEFAULT_OPTIONS, name)
+        ? typeof value === typeof DEFAULT_OPTIONS[name as keyof typeof DEFAULT_OPTIONS]
+        : undefined
   }
 }
 
