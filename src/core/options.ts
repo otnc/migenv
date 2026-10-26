@@ -54,7 +54,7 @@ export interface ResolvedOptions {
 }
 
 /** The value of each option when no layer sets it. */
-export const DEFAULT_OPTIONS: Readonly<Omit<ResolvedOptions, 'isProtected' | 'backupDir'>> = {
+const DEFAULT_OPTIONS: Readonly<Omit<ResolvedOptions, 'isProtected' | 'backupDir'>> = {
   add: true,
   remove: false,
   reorder: true,
