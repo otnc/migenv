@@ -261,6 +261,8 @@ const report = diff(currentText, templateText)
 Errors are `MigenvError`s whose `error.code` is one of `INVALID_OPTION`, `UNKNOWN_LINE`, `DUPLICATE_KEY` and `FILE_NOT_FOUND`. Check `error.code` rather than `instanceof`, which fails when both the ESM and the CommonJS build are loaded.
 
 A line that cannot be parsed, such as one with an unclosed quote, is kept as it is and reported by line number in `result.warnings`. Warnings and error messages name keys and line numbers only, never values.
+
+migenv reads quotes the way dotenv does, so a quoted value whose closing quote comes right after a backslash, such as `"C:\tools\"`, can reach into the lines after it. When aligning would make such a value read differently, `align` and `migrateFile` leave the file unchanged and add an `ambiguous-quote` warning.
 :::
 :::kiritan{locale=ja}
 ## エラーと警告
@@ -268,6 +270,8 @@ A line that cannot be parsed, such as one with an unclosed quote, is kept as it 
 例外は `MigenvError` で、`error.code` に `INVALID_OPTION`、`UNKNOWN_LINE`、`DUPLICATE_KEY`、`FILE_NOT_FOUND` のどれかが入ります。ESM と CommonJS を同時に読むと `instanceof` が外れることがあるので、判定には `error.code` を使ってください。
 
 閉じクォートのない行のように解釈できない行は、消さずにそのまま残し、`result.warnings` に行番号を出します。警告とエラーのメッセージには、キー名と行番号だけを入れ、値は入れません。
+
+migenv はクォートを dotenv と同じように読みます。そのため、`"C:\tools\"` のように閉じクォートの直前がバックスラッシュの値は、後ろの行まで続けて読まれることがあります。揃えるとこうした値の読み方が変わってしまうときは、`align` も `migrateFile` もファイルを変えずに、`ambiguous-quote` の警告を出します。
 :::
 
 :::kiritan{locale=en}
