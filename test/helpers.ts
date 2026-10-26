@@ -1,4 +1,9 @@
 import { fc } from '@fast-check/vitest'
+import { type EntryNode, parse } from '../src/core/parse'
+
+export function entriesOf(text: string): EntryNode[] {
+  return parse(text).nodes.filter((node) => node.kind === 'entry')
+}
 
 const BOM = String.fromCharCode(0xfeff)
 

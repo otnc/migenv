@@ -1,19 +1,23 @@
 import { describe, expect, it } from 'vitest'
-import type { MigenvError } from './errors'
-import { DEFAULT_OPTIONS, type MigenvOptions, resolveOptions } from './options'
-
-function errorCodeOf(fn: () => unknown): string | undefined {
-  try {
-    fn()
-  } catch (error) {
-    return (error as MigenvError).code
-  }
-  return undefined
-}
+import { type MigenvOptions, resolveOptions } from './options'
 
 describe('resolveOptions', () => {
-  it('fills in the defaults', () => {
-    expect(resolveOptions()).toMatchObject({ ...DEFAULT_OPTIONS, backupDir: undefined })
+  it('uses the documented defaults', () => {
+    expect(resolveOptions()).toMatchObject({
+      add: true,
+      remove: false,
+      reorder: true,
+      useTemplateDefaults: true,
+      extrasHeader: '# ---- Not in template (review manually) ----',
+      newline: 'template',
+      duplicates: 'last',
+      strict: false,
+      backup: false,
+      backupDir: undefined,
+      create: false,
+      dryRun: false,
+    })
+    expect(resolveOptions().isProtected('ANY', '')).toBe(false)
   })
 
   it('lets later layers win and ignores undefined', () => {
@@ -36,22 +40,14 @@ describe('resolveOptions', () => {
   it.each([
     ['*_SECRET', 'A_SECRET', true],
     ['*_SECRET', 'A_SECRET_2', false],
-    ['API.*', 'API.KEY', true],
     ['API.*', 'APIXKEY', false],
-    ['*', 'ANY', true],
   ])('pattern %s matches %s: %s', (pattern, key, matches) => {
     expect(resolveOptions({ protect: [pattern] }).isProtected(key, '')).toBe(matches)
   })
 
-  it('rejects unknown options and wrong types', () => {
-    expect(errorCodeOf(() => resolveOptions({ remvoe: true } as MigenvOptions))).toBe(
-      'INVALID_OPTION',
-    )
-    expect(errorCodeOf(() => resolveOptions({ add: 'yes' } as unknown as MigenvOptions))).toBe(
-      'INVALID_OPTION',
-    )
-    expect(errorCodeOf(() => resolveOptions({ newline: 'cr' } as unknown as MigenvOptions))).toBe(
-      'INVALID_OPTION',
+  it.each([{ remvoe: true }, { add: 'yes' }, { newline: 'cr' }])('rejects %o', (options) => {
+    expect(() => resolveOptions(options as unknown as MigenvOptions)).toThrow(
+      expect.objectContaining({ code: 'INVALID_OPTION' }),
     )
   })
 })

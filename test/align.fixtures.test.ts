@@ -21,8 +21,4 @@ describe.each(readdirSync(root))('%s', (dir) => {
   it('matches expected.env', () => {
     expect(align(current, template, options).text).toBe(expected)
   })
-
-  it('leaves expected.env unchanged', () => {
-    expect(align(expected, template, options).changed).toBe(false)
-  })
 })

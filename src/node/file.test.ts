@@ -2,7 +2,6 @@ import { lstat, mkdtemp, readdir, readFile, rm, stat, symlink, writeFile } from 
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import type { MigenvError } from '../core/errors'
 import { migrateFile, writeFileAtomic } from './file'
 
 const onWindows = process.platform === 'win32'
@@ -54,8 +53,9 @@ describe('migrateFile', () => {
   })
 
   it('throws FILE_NOT_FOUND for a missing file unless create is on', async () => {
-    const error = await migrateFile(envPath, templatePath).catch((e: unknown) => e)
-    expect((error as MigenvError).code).toBe('FILE_NOT_FOUND')
+    await expect(migrateFile(envPath, templatePath)).rejects.toThrow(
+      expect.objectContaining({ code: 'FILE_NOT_FOUND' }),
+    )
 
     const result = await migrateFile(envPath, templatePath, { create: true })
     expect(result).toMatchObject({ written: true, created: true })
