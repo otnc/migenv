@@ -1,3 +1,6 @@
 * text=auto eol=lf
 
 test/fixtures/** -text
+
+# Third-party agent skills; keep them out of the repository's language stats.
+.agents/** linguist-vendored
