@@ -79,6 +79,8 @@
     "format:check": "prettier --check .",
     "check": "prettier --write . && eslint --fix",
     "ci": "prettier --check . && eslint",
+    "docs:build": "kiritan build",
+    "docs:check": "kiritan check && kiritan verify",
     "prepublishOnly": "npm run build"
   },
   "devDependencies": {
@@ -92,6 +94,7 @@
     "eslint-plugin-n": "^18.5.0",
     "fast-check": "^4.10.2",
     "globals": "^17.13.0",
+    "kiritan": "^0.6.1",
     "prettier": "^3.9.10",
     "publint": "^0.3.25",
     "tsdown": "^0.23.2",

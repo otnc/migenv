@@ -24,6 +24,17 @@ Run `npm run ci && npm run typecheck && npm run test` before saying a change is 
 - `src/core` must not import from `node:*`.
 - Fixture files must not be named `.env*`, because `.gitignore` ignores those.
 - Every new source file must be exported from `src/core/index.ts` or `src/node/index.ts`, or the build leaves it out.
+- `README.md` and `README.ja.md` are generated. Edit `base/README.base.md`, then run `npm run docs:build` and `npm run docs:check`.
+
+## Skills
+
+Project skills live in `.agents/skills/` and are pinned in `skills-lock.json`. `.claude/skills/` only holds links to them and is not committed; run `npx skills experimental_install` to recreate it.
+
+- `typescript-design`: when designing, writing or refactoring TypeScript
+- `hush`, `hush-review`, `hush-fix`: when writing or reviewing comments
+- `fix-unnatural-line-breaks`: when writing Markdown or comments
+- `kiritan`: when editing the README, which is generated from `base/README.base.md`
+- `natural-japanese`, `stop-ai-slop-jp`: when writing Japanese text
 
 ## Writing
 

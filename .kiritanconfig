@@ -1,0 +1,9 @@
+import { defineConfig } from 'kiritan'
+
+export default defineConfig({
+  locales: { default: 'en', list: ['en', 'ja'] },
+  // README.md for the default locale and README.ja.md, both at the repository root.
+  naming: { template: '{base}.{locale}.{ext}' },
+  markdown: { alertBlankLineSpaces: 3 },
+  sources: [{ glob: 'base/README.base.md', strategy: 'inline' }],
+})

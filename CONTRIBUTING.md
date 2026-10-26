@@ -28,6 +28,8 @@ Commit `package-lock.json` along with any dependency change.
 | `npm run lint:pkg` | Check `package.json` and the built types with publint and attw (run `build` first) |
 | `npm run check` | Format and lint, writing the fixes |
 | `npm run ci` | The same checks without writing (what CI runs) |
+| `npm run docs:build` | Generate `README.md` and `README.ja.md` from `base/README.base.md` with kiritan |
+| `npm run docs:check` | Check that both READMEs are translated and up to date with `base/README.base.md` |
 
 Before opening a pull request, make sure the full set passes:
 
