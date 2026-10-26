@@ -68,9 +68,24 @@ OLD_API_KEY=abc123
 npm install --save-dev migenv
 ```
 
-migenv runs on Node.js 18 and later. It ships as both ESM and CommonJS, with TypeScript type definitions for each.
+migenv runs on Node.js 18.3 and later. The API ships as both ESM and CommonJS, with TypeScript type definitions for each.
 
 ## Usage
+
+### Command line
+
+```sh
+npx migenv              # align .env with .env.example (same as "migenv align")
+npx migenv check        # exit with 1 when .env is out of date, for CI
+npx migenv diff         # show what align would change
+npx migenv align .env.local --remove --protect SESSION_SECRET --backup
+```
+
+Each file is aligned with `<file>.example`. When that does not exist, migenv drops the file's last suffix and tries again, so `.env.local` falls back to `.env.example`. Pass `-t, --template <path>` to choose the template yourself. Paths are relative to the directory you run migenv in. `check` and `diff` never write, and no command ever prints a value.
+
+The flags follow the options below: `--no-add`, `--remove`, `-p, --protect <keys>` (comma-separated or repeated), `--no-reorder`, `--no-template-defaults`, `--newline <template|current|lf|crlf>`, `--duplicates <last|first|error>`, `--strict`, and for `align` only `--backup`, `--backup-dir <dir>`, `--create` and `--dry-run`. `--remove` asks before deleting keys; where nobody can answer, such as in CI, pass `--yes`.
+
+The exit code is 0 on success, 1 when `check` finds a file out of date, and 2 for a usage error, a missing file or template, or a parse failure. Messages are in English or Japanese, chosen by `--lang <en|ja>`, then `LC_ALL`, `LC_MESSAGES` and `LANG`.
 
 ### Rewrite a file
 

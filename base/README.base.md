@@ -103,15 +103,29 @@ npm install --save-dev migenv
 ```
 
 :::kiritan{locale=en}
-migenv runs on Node.js 18 and later. It ships as both ESM and CommonJS, with TypeScript type definitions for each.
+migenv runs on Node.js 18.3 and later. The API ships as both ESM and CommonJS, with TypeScript type definitions for each.
 :::
 :::kiritan{locale=ja}
-Node.js 18 以降で動きます。ESM と CommonJS の両方で配布していて、それぞれに TypeScript の型定義が付いています。
+Node.js 18.3 以降で動きます。API は ESM と CommonJS の両方で配布していて、それぞれに TypeScript の型定義が付いています。
 :::
 
 :::kiritan{locale=en}
 ## Usage
 
+### Command line
+
+```sh
+npx migenv              # align .env with .env.example (same as "migenv align")
+npx migenv check        # exit with 1 when .env is out of date, for CI
+npx migenv diff         # show what align would change
+npx migenv align .env.local --remove --protect SESSION_SECRET --backup
+```
+
+Each file is aligned with `<file>.example`. When that does not exist, migenv drops the file's last suffix and tries again, so `.env.local` falls back to `.env.example`. Pass `-t, --template <path>` to choose the template yourself. Paths are relative to the directory you run migenv in. `check` and `diff` never write, and no command ever prints a value.
+
+The flags follow the options below: `--no-add`, `--remove`, `-p, --protect <keys>` (comma-separated or repeated), `--no-reorder`, `--no-template-defaults`, `--newline <template|current|lf|crlf>`, `--duplicates <last|first|error>`, `--strict`, and for `align` only `--backup`, `--backup-dir <dir>`, `--create` and `--dry-run`. `--remove` asks before deleting keys; where nobody can answer, such as in CI, pass `--yes`.
+
+The exit code is 0 on success, 1 when `check` finds a file out of date, and 2 for a usage error, a missing file or template, or a parse failure. Messages are in English or Japanese, chosen by `--lang <en|ja>`, then `LC_ALL`, `LC_MESSAGES` and `LANG`.
 ### Rewrite a file
 
 Pass the env file and its template to `migrateFile` from `migenv/node`.
@@ -135,6 +149,20 @@ The new content goes to a temporary file in the same directory, which then repla
 :::kiritan{locale=ja}
 ## 使い方
 
+### コマンドライン
+
+```sh
+npx migenv              # .env を .env.example に揃える ("migenv align" と同じ)
+npx migenv check        # .env がずれていれば exit 1 で終える。CI 用
+npx migenv diff         # align で何が変わるかを表示する
+npx migenv align .env.local --remove --protect SESSION_SECRET --backup
+```
+
+各ファイルは `<ファイル>.example` に揃えます。それがなければ、ファイル名の最後の拡張子を外して探し直すので、`.env.local` は `.env.example` を使います。テンプレートを自分で決めるときは `-t, --template <パス>` を渡します。パスは migenv を実行したディレクトリが基準です。`check` と `diff` は何も書き換えず、どのコマンドも値を表示しません。
+
+フラグは下のオプションに対応しています。`--no-add`、`--remove`、`-p, --protect <キー>` (カンマ区切りか、繰り返して指定)、`--no-reorder`、`--no-template-defaults`、`--newline <template|current|lf|crlf>`、`--duplicates <last|first|error>`、`--strict` と、`align` だけで使える `--backup`、`--backup-dir <ディレクトリ>`、`--create`、`--dry-run` です。`--remove` はキーを消す前に確認します。CI のように答えられない場面では `--yes` を付けてください。
+
+終了コードは、成功なら 0、`check` でずれが見つかれば 1、使い方の誤り、ファイルやテンプレートがない、解釈に失敗したときは 2 です。表示は英語か日本語で、`--lang <en|ja>`、`LC_ALL`、`LC_MESSAGES`、`LANG` の順に見て決めます。
 ### ファイルを書き換える
 
 `migenv/node` の `migrateFile` に、対象のファイルとテンプレートのパスを渡します。
