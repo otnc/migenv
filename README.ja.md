@@ -141,6 +141,8 @@ const report = diff(currentText, templateText)
 
 閉じクォートのない行のように解釈できない行は、消さずにそのまま残し、`result.warnings` に行番号を出します。警告とエラーのメッセージには、キー名と行番号だけを入れ、値は入れません。
 
+migenv はクォートを dotenv と同じように読みます。そのため、`"C:\tools\"` のように閉じクォートの直前がバックスラッシュの値は、後ろの行まで続けて読まれることがあります。揃えるとこうした値の読み方が変わってしまうときは、`align` も `migrateFile` もファイルを変えずに、`ambiguous-quote` の警告を出します。
+
 ## やらないこと
 
 - 環境変数の読み込み。`process.env` に入れるのは [dotenv](https://github.com/motdotla/dotenv) や Node.js の [`--env-file`](https://nodejs.org/api/cli.html#--env-filefile)、[Wrangler](https://developers.cloudflare.com/workers/configuration/environment-variables/) の役目です
