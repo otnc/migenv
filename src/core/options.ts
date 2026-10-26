@@ -86,9 +86,7 @@ const CHOICE_OPTIONS: Readonly<Record<string, readonly string[]>> = {
 
 /**
  * Fills in defaults. Later layers override earlier ones, `undefined` counts as not set, and `protect` is the union of every layer.
- *
  * @throws {MigenvError} `INVALID_OPTION` for an unknown option name or a value of the wrong type.
- *
  * @example
  * const options = resolveOptions(configOptions, { remove: true, protect: ['*_SECRET'] })
  * options.isProtected('SESSION_SECRET', '') // => true

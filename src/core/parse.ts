@@ -57,7 +57,6 @@ interface Line {
 /**
  * Splits an env file into nodes without decoding any value, so that `stringify(parse(text)) === text` always holds.
  * Lines that cannot be parsed become `unknown` nodes instead of errors.
- *
  * @example
  * const doc = parse('# db\nexport DATABASE_URL="postgres://x" # local\n')
  * doc.nodes[1] // => { kind: 'entry', key: 'DATABASE_URL', exported: true, rawValue: '"postgres://x" # local', ... }
@@ -109,7 +108,6 @@ export function entriesByKey(
 
 /**
  * Turns a document back into text, line endings and BOM included.
- *
  * @example
  * stringify(parse(text)) === text // => true for any text
  */

@@ -14,7 +14,6 @@ export interface DiffReport {
 
 /**
  * Compares `current` with `template` without changing anything. Uses the `duplicates` option to pick which of two same-named keys counts.
- *
  * @example
  * diff('B=\nA=1\nOLD=x\n', 'A=\nB=\nC=\n')
  * // => { missing: ['C'], empty: ['B'], extra: ['OLD'], orderDiffers: true }

@@ -38,9 +38,7 @@ const RENAME_RETRIES = 5
 /**
  * Aligns the env file at `file` with the template at `template` and writes the result in place.
  * The file is left untouched, backup included, when the result is the same as before.
- *
  * @throws {MigenvError} `FILE_NOT_FOUND` when `file` does not exist and `create` is off, plus the errors of `align`.
- *
  * @example
  * const result = await migrateFile('.env', '.env.example', {
  *   remove: true,
@@ -79,7 +77,6 @@ export async function migrateFile(
 /**
  * Replaces the file at `path` with `text` without ever leaving it half written: the text goes to a temporary file in the same directory, which is then renamed over `path`.
  * An existing file keeps its permissions, a symbolic link keeps pointing at the file it points to, and a new file is created with mode `0o600`.
- *
  * @example
  * await writeFileAtomic('.env', 'API_KEY=abc\n')
  */

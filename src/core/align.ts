@@ -65,9 +65,7 @@ interface Context {
 /**
  * Rewrites `current` so that it follows `template`: the same key order and comments, missing keys added from the template, and keys the template does not have collected at the end.
  * Non-empty values in `current` are kept byte for byte.
- *
  * @throws {MigenvError} `UNKNOWN_LINE` with `strict: true`, `DUPLICATE_KEY` with `duplicates: 'error'`, `INVALID_OPTION` for bad options.
- *
  * @example
  * const result = align('B=2\nA=1\nOLD=x\n', '# app\nA=\nB=\nC=3\n', { protect: ['OLD'] })
  * result.text // => '# app\nA=1\nB=2\nC=3\n\n# ---- Not in template (review manually) ----\nOLD=x\n'
