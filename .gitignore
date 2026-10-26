@@ -19,6 +19,9 @@ coverage/
 .private/
 CLAUDE.local.md
 
+# Links into .agents/skills/ that `npx skills experimental_install` recreates from skills-lock.json
+.claude/skills/
+
 npm-debug.log*
 
 .DS_Store

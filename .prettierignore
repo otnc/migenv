@@ -2,3 +2,5 @@ package.json
 package-lock.json
 *.md
 test/fixtures/
+.agents/
+skills-lock.json
