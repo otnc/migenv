@@ -1,6 +1,7 @@
 import { type MigenvOptions, resolveOptions } from './options'
 import { commentedOutKey, entriesByKey, parse } from './parse'
 
+/** How `current` differs from `template`, as returned by `diff`. */
 export interface DiffReport {
   /** Keys in the template that the current file lacks. */
   readonly missing: readonly string[]

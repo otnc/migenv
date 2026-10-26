@@ -1,5 +1,7 @@
+/** One line of an env file, or several for a quoted value that spans lines. Narrow it by `kind`. */
 export type EnvNode = BlankNode | CommentNode | EntryNode | UnknownNode
 
+/** The line break after a node; `''` only for a last line without one. */
 export type LineEnding = '\n' | '\r\n' | ''
 
 interface BaseNode {
@@ -39,7 +41,9 @@ export interface EnvDocument {
   readonly nodes: readonly EnvNode[]
   /** `'\r\n'` when any line ends with CRLF, otherwise `'\n'`. */
   readonly newline: '\n' | '\r\n'
+  /** Whether the text started with a UTF-8 BOM. `stringify` writes it back. */
   readonly bom: boolean
+  /** Whether the last line ends with a line break. */
   readonly finalNewline: boolean
 }
 

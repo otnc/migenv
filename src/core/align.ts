@@ -10,25 +10,35 @@ import {
   stringify,
 } from './parse'
 
+/**
+ * `'unknown-line'`: a line could not be parsed. `'duplicate-key'`: a key appears more than once in the current file.
+ * `'protected'`: `protect` stopped an action, which is also listed in `AlignResult.protectedSkips`.
+ */
 export type WarningCode = 'unknown-line' | 'duplicate-key' | 'protected'
 
 /** Something worth telling the user. Messages never contain values. */
 export interface Warning {
   readonly code: WarningCode
   readonly message: string
+  /** Which input the warning is about. */
   readonly source: 'current' | 'template'
+  /** Set for `'unknown-line'` and `'duplicate-key'`: the line the warning is about. */
   readonly line?: number
+  /** Set for `'duplicate-key'` and `'protected'`. */
   readonly key?: string
 }
 
+/** An action that `protect` stopped for a key. */
 export interface ProtectedSkip {
   readonly key: string
   /** `'default'`: an empty value was not replaced with the template's. `'remove'`: the key was kept although `remove` is on. */
   readonly action: 'default' | 'remove'
 }
 
+/** What `align` produced, and what it did to get there. */
 export interface AlignResult {
   readonly text: string
+  /** Whether `text` differs from the `current` that was passed in. */
   readonly changed: boolean
   /** Keys added from the template. */
   readonly added: readonly string[]
@@ -281,6 +291,10 @@ function keepCurrentOrder(context: Context): EnvNode[] {
   return output
 }
 
+/**
+ * The final newline follows the file whose layout the output keeps: the template with `reorder: true`, the current file otherwise.
+ * The BOM always follows the current file, so a new file never gets one from its template.
+ */
 function finishDocument(nodes: readonly EnvNode[], context: Context): EnvDocument {
   const { options, current, template } = context
   const newline = outputNewline(context)
