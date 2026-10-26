@@ -1,28 +1,14 @@
 import { fc, test } from '@fast-check/vitest'
 import { describe, expect, it } from 'vitest'
-import { anyText, envText } from '../../test/arbitraries'
+import { anyText, entriesOf, envText } from '../../test/helpers'
 import { align } from './align'
-import type { MigenvError } from './errors'
 import type { MigenvOptions } from './options'
-import { type EntryNode, parse } from './parse'
+import type { EntryNode } from './parse'
 
 const HEADER = '# ---- Not in template (review manually) ----'
 
-function entries(text: string): EntryNode[] {
-  return parse(text).nodes.filter((node) => node.kind === 'entry')
-}
-
 function lastEntries(text: string): Map<string, EntryNode> {
-  return new Map(entries(text).map((entry) => [entry.key, entry]))
-}
-
-function errorCodeOf(fn: () => unknown): string | undefined {
-  try {
-    fn()
-  } catch (error) {
-    return (error as MigenvError).code
-  }
-  return undefined
+  return new Map(entriesOf(text).map((entry) => [entry.key, entry]))
 }
 
 const options: fc.Arbitrary<MigenvOptions> = fc.record(
@@ -74,24 +60,20 @@ describe('align', () => {
   })
 
   it('warns about unknown lines without their content', () => {
-    const result = align('A=1\nTOKEN="abc\n', 'A=\n')
-    expect(result.warnings).toEqual([
-      {
-        code: 'unknown-line',
-        source: 'current',
-        line: 2,
-        message: 'Line 2 of the current file could not be parsed and was kept as is.',
-      },
-    ])
+    const [warning] = align('A=1\nTOKEN="abc\n', 'A=\n').warnings
+    expect(warning).toMatchObject({ code: 'unknown-line', source: 'current', line: 2 })
+    expect(warning?.message).not.toContain('abc')
   })
 
   it('throws on unknown lines with strict: true', () => {
-    expect(errorCodeOf(() => align('TOKEN="abc\n', 'A=\n', { strict: true }))).toBe('UNKNOWN_LINE')
+    expect(() => align('TOKEN="abc\n', 'A=\n', { strict: true })).toThrow(
+      expect.objectContaining({ code: 'UNKNOWN_LINE' }),
+    )
   })
 
   it("throws on duplicate keys with duplicates: 'error'", () => {
-    expect(errorCodeOf(() => align('A=1\nA=2\n', 'A=\n', { duplicates: 'error' }))).toBe(
-      'DUPLICATE_KEY',
+    expect(() => align('A=1\nA=2\n', 'A=\n', { duplicates: 'error' })).toThrow(
+      expect.objectContaining({ code: 'DUPLICATE_KEY' }),
     )
   })
 
@@ -123,7 +105,7 @@ describe('align properties', () => {
     (current, template, opts) => {
       const protect = ['A', 'api.*']
       const result = align(current, template, { ...opts, protect })
-      const outputRaws = entries(result.text).map((entry) => entry.raw)
+      const outputRaws = entriesOf(result.text).map((entry) => entry.raw)
       for (const entry of lastEntries(current).values()) {
         if (entry.key === 'A' || entry.key.startsWith('api.')) {
           expect(outputRaws).toContain(entry.raw)
@@ -136,16 +118,16 @@ describe('align properties', () => {
     'keeps every current key with remove: false',
     (current, template, opts) => {
       const result = align(current, template, { ...opts, remove: false })
-      const outputKeys = new Set(entries(result.text).map((entry) => entry.key))
-      for (const entry of entries(current)) {
+      const outputKeys = new Set(entriesOf(result.text).map((entry) => entry.key))
+      for (const entry of entriesOf(current)) {
         expect(outputKeys).toContain(entry.key)
       }
     },
   )
 
   test.prop([envText, envText])('puts template keys in template order', (current, template) => {
-    const templateKeys = [...new Set(entries(template).map((entry) => entry.key))]
-    const outputKeys = entries(align(current, template).text)
+    const templateKeys = [...new Set(entriesOf(template).map((entry) => entry.key))]
+    const outputKeys = entriesOf(align(current, template).text)
       .map((entry) => entry.key)
       .filter((key) => templateKeys.includes(key))
     expect(outputKeys).toEqual(templateKeys)

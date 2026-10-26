@@ -2,6 +2,7 @@ import { MigenvError } from './errors'
 import { type MigenvOptions, type ResolvedOptions, resolveOptions } from './options'
 import {
   commentedOutKey,
+  entriesByKey,
   type EntryNode,
   type EnvDocument,
   type EnvNode,
@@ -56,15 +57,15 @@ interface Context {
   readonly template: EnvDocument
   /** The entry that wins for each key in the current file, chosen by `duplicates`. */
   readonly chosen: ReadonlyMap<string, EntryNode>
+  /** The first entry for each key in the template. */
+  readonly templateEntries: ReadonlyMap<string, EntryNode>
   readonly report: Report
 }
 
 /**
  * Rewrites `current` so that it follows `template`: the same key order and comments, missing keys added from the template, and keys the template does not have collected at the end.
  * Non-empty values in `current` are kept byte for byte.
- *
  * @throws {MigenvError} `UNKNOWN_LINE` with `strict: true`, `DUPLICATE_KEY` with `duplicates: 'error'`, `INVALID_OPTION` for bad options.
- *
  * @example
  * const result = align('B=2\nA=1\nOLD=x\n', '# app\nA=\nB=\nC=3\n', { protect: ['OLD'] })
  * result.text // => '# app\nA=1\nB=2\nC=3\n\n# ---- Not in template (review manually) ----\nOLD=x\n'
@@ -90,6 +91,7 @@ export function align(current: string, template: string, options?: MigenvOptions
     current: currentDoc,
     template: templateDoc,
     chosen: chooseEntries(currentDoc, resolved, report),
+    templateEntries: entriesByKey(templateDoc, 'first'),
     report,
   }
   const nodes = resolved.reorder ? followTemplate(context) : keepCurrentOrder(context)
@@ -126,33 +128,20 @@ function checkUnknownLines(
 
 function chooseEntries(
   doc: EnvDocument,
-  options: ResolvedOptions,
+  { duplicates }: ResolvedOptions,
   report: Report,
 ): Map<string, EntryNode> {
-  const chosen = new Map<string, EntryNode>()
-  for (const node of doc.nodes) {
-    if (node.kind !== 'entry') continue
-    const previous = chosen.get(node.key)
-    if (previous !== undefined) {
-      const lines = `lines ${previous.line} and ${node.line}`
-      if (options.duplicates === 'error') {
-        throw new MigenvError(
-          'DUPLICATE_KEY',
-          `"${node.key}" appears more than once in the current file (${lines}).`,
-        )
-      }
-      report.warnings.push({
-        code: 'duplicate-key',
-        source: 'current',
-        line: node.line,
-        key: node.key,
-        message: `"${node.key}" appears more than once in the current file (${lines}). Only the ${options.duplicates} one is kept.`,
-      })
-      if (options.duplicates === 'first') continue
-    }
-    chosen.set(node.key, node)
-  }
-  return chosen
+  return entriesByKey(doc, duplicates === 'first' ? 'first' : 'last', (kept, repeat) => {
+    const where = `"${repeat.key}" appears more than once in the current file (lines ${kept.line} and ${repeat.line}).`
+    if (duplicates === 'error') throw new MigenvError('DUPLICATE_KEY', where)
+    report.warnings.push({
+      code: 'duplicate-key',
+      source: 'current',
+      line: repeat.line,
+      key: repeat.key,
+      message: `${where} Only the ${duplicates} one is kept.`,
+    })
+  })
 }
 
 /** Picks the line for a template key, or `undefined` when nothing should be written. */
@@ -176,21 +165,22 @@ function lineForTemplateEntry(templateEntry: EntryNode, context: Context): EnvNo
   return currentEntry
 }
 
-/** Returns true when the extra entry should be dropped. */
-function shouldRemoveExtra(entry: EntryNode, context: Context): boolean {
-  const { options, report } = context
-  if (!options.remove) return false
-  if (!options.isProtected(entry.key, entry.rawValue)) {
+/** Decides whether a key the template lacks stays, and records it as extra or removed. */
+function keepsExtra(entry: EntryNode, { options, report }: Context): boolean {
+  if (options.remove && !options.isProtected(entry.key, entry.rawValue)) {
     report.removed.push(entry.key)
-    return true
+    return false
   }
-  skipForProtect(
-    entry.key,
-    'remove',
-    `"${entry.key}" is protected, so it was kept although it is not in the template.`,
-    report,
-  )
-  return false
+  if (options.remove) {
+    skipForProtect(
+      entry.key,
+      'remove',
+      `"${entry.key}" is protected, so it was kept although it is not in the template.`,
+      report,
+    )
+  }
+  report.extra.push(entry.key)
+  return true
 }
 
 function skipForProtect(
@@ -204,8 +194,7 @@ function skipForProtect(
 }
 
 function followTemplate(context: Context): EnvNode[] {
-  const { options, current, template, chosen, report } = context
-  const templateKeys = new Set(template.nodes.flatMap((n) => (n.kind === 'entry' ? [n.key] : [])))
+  const { options, current, template, chosen, templateEntries, report } = context
   const writtenKeys = new Set<string>()
   const output: EnvNode[] = []
 
@@ -218,7 +207,7 @@ function followTemplate(context: Context): EnvNode[] {
       // `# KEY=` in the template marks an optional key; the current line takes the comment's place.
       if (
         currentEntry !== undefined &&
-        !templateKeys.has(currentEntry.key) &&
+        !templateEntries.has(currentEntry.key) &&
         !writtenKeys.has(currentEntry.key)
       ) {
         writtenKeys.add(currentEntry.key)
@@ -242,9 +231,7 @@ function followTemplate(context: Context): EnvNode[] {
   for (const node of current.nodes) {
     if (node.kind === 'entry') {
       if (chosen.get(node.key) !== node || writtenKeys.has(node.key)) continue
-      if (shouldRemoveExtra(node, context)) continue
-      report.extra.push(node.key)
-      extras.push(node)
+      if (keepsExtra(node, context)) extras.push(node)
     } else if (node.kind === 'unknown') {
       extras.push(node)
     } else if (node.kind === 'comment') {
@@ -266,14 +253,7 @@ function followTemplate(context: Context): EnvNode[] {
 }
 
 function keepCurrentOrder(context: Context): EnvNode[] {
-  const { current, template, chosen } = context
-  const templateEntries = new Map<string, EntryNode>()
-  for (const node of template.nodes) {
-    if (node.kind === 'entry' && !templateEntries.has(node.key)) {
-      templateEntries.set(node.key, node)
-    }
-  }
-
+  const { current, chosen, templateEntries } = context
   const output: EnvNode[] = []
   for (const node of current.nodes) {
     if (node.kind !== 'entry') {
@@ -284,8 +264,7 @@ function keepCurrentOrder(context: Context): EnvNode[] {
     const templateEntry = templateEntries.get(node.key)
     if (templateEntry !== undefined) {
       output.push(lineForTemplateEntry(templateEntry, context) ?? node)
-    } else if (!shouldRemoveExtra(node, context)) {
-      context.report.extra.push(node.key)
+    } else if (keepsExtra(node, context)) {
       output.push(node)
     }
   }

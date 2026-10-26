@@ -1,5 +1,6 @@
 import { MigenvError } from './errors'
 
+/** Decides protection from the key and its undecoded value, e.g. `(key, raw) => raw.startsWith('vault:')`. */
 export type ProtectFn = (key: string, rawValue: string) => boolean
 
 /** Options shared by every migenv function. Each function ignores the ones it does not use. */
@@ -35,6 +36,7 @@ export interface MigenvOptions {
   readonly dryRun?: boolean | undefined
 }
 
+/** `MigenvOptions` with every default filled in, as returned by `resolveOptions`. */
 export interface ResolvedOptions {
   readonly add: boolean
   readonly remove: boolean
@@ -51,6 +53,7 @@ export interface ResolvedOptions {
   readonly dryRun: boolean
 }
 
+/** The value of each option when no layer sets it. */
 export const DEFAULT_OPTIONS: Readonly<Omit<ResolvedOptions, 'isProtected' | 'backupDir'>> = {
   add: true,
   remove: false,
@@ -83,9 +86,7 @@ const CHOICE_OPTIONS: Readonly<Record<string, readonly string[]>> = {
 
 /**
  * Fills in defaults. Later layers override earlier ones, `undefined` counts as not set, and `protect` is the union of every layer.
- *
  * @throws {MigenvError} `INVALID_OPTION` for an unknown option name or a value of the wrong type.
- *
  * @example
  * const options = resolveOptions(configOptions, { remove: true, protect: ['*_SECRET'] })
  * options.isProtected('SESSION_SECRET', '') // => true
