@@ -1,3 +1,4 @@
+/** `FILE_NOT_FOUND` comes from `migrateFile`; the others from every function that takes options. */
 export type MigenvErrorCode = 'UNKNOWN_LINE' | 'DUPLICATE_KEY' | 'INVALID_OPTION' | 'FILE_NOT_FOUND'
 
 /**

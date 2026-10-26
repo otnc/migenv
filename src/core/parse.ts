@@ -3,7 +3,9 @@ export type EnvNode = BlankNode | CommentNode | EntryNode | UnknownNode
 export type LineEnding = '\n' | '\r\n' | ''
 
 interface BaseNode {
+  /** The source text without the trailing line ending. A multi-line value keeps its inner line breaks. */
   readonly raw: string
+  /** 1-based line number where the node starts. */
   readonly line: number
   /** The line ending that followed the node in the source; '' for a last line without one. */
   readonly eol: LineEnding
@@ -20,17 +22,22 @@ export interface CommentNode extends BaseNode {
 export interface EntryNode extends BaseNode {
   readonly kind: 'entry'
   readonly key: string
+  /** Whether the line starts with `export `. */
   readonly exported: boolean
+  /** Everything after `=`, undecoded: quotes, leading spaces and an inline comment included. */
   readonly rawValue: string
+  /** True when the value is blank, a bare comment, or an empty pair of quotes. */
   readonly isEmpty: boolean
 }
 
+/** A line that could not be parsed, such as an unclosed quote. It is kept, never dropped. */
 export interface UnknownNode extends BaseNode {
   readonly kind: 'unknown'
 }
 
 export interface EnvDocument {
   readonly nodes: readonly EnvNode[]
+  /** `'\r\n'` when any line ends with CRLF, otherwise `'\n'`. */
   readonly newline: '\n' | '\r\n'
   readonly bom: boolean
   readonly finalNewline: boolean
@@ -180,6 +187,7 @@ function parseNode(lines: readonly Line[], index: number): { node: EnvNode; span
 function findClosingQuote(value: string, quote: string, from: number): number {
   for (let i = from; i < value.length; i++) {
     const char = value[i]
+    // Like dotenv, only double quotes treat a backslash as an escape.
     if (quote === '"' && char === '\\') {
       i += 1
       continue

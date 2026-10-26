@@ -27,6 +27,7 @@ export interface MigrateFileResult extends AlignResult {
   readonly written: boolean
   /** Whether the file did not exist and was created from the template. */
   readonly created: boolean
+  /** Where the original was copied with `backup: true`; `undefined` when no backup was made. */
   readonly backupPath: string | undefined
 }
 

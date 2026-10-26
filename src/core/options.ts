@@ -1,5 +1,6 @@
 import { MigenvError } from './errors'
 
+/** Decides protection from the key and its undecoded value, e.g. `(key, raw) => raw.startsWith('vault:')`. */
 export type ProtectFn = (key: string, rawValue: string) => boolean
 
 /** Options shared by every migenv function. Each function ignores the ones it does not use. */
@@ -35,6 +36,7 @@ export interface MigenvOptions {
   readonly dryRun?: boolean | undefined
 }
 
+/** `MigenvOptions` with every default filled in, as returned by `resolveOptions`. */
 export interface ResolvedOptions {
   readonly add: boolean
   readonly remove: boolean
@@ -51,6 +53,7 @@ export interface ResolvedOptions {
   readonly dryRun: boolean
 }
 
+/** The value of each option when no layer sets it. */
 export const DEFAULT_OPTIONS: Readonly<Omit<ResolvedOptions, 'isProtected' | 'backupDir'>> = {
   add: true,
   remove: false,
