@@ -1,8 +1,7 @@
-import { fc, test } from '@fast-check/vitest'
+import { test } from '@fast-check/vitest'
 import { describe, expect, it } from 'vitest'
-import { anyText, entriesOf, envText } from '../../test/helpers'
+import { alignOptions, anyText, entriesOf, envText } from '../../test/helpers'
 import { align } from './align'
-import type { MigenvOptions } from './options'
 import type { EntryNode } from './parse'
 
 const HEADER = '# ---- Not in template (review manually) ----'
@@ -10,23 +9,6 @@ const HEADER = '# ---- Not in template (review manually) ----'
 function lastEntries(text: string): Map<string, EntryNode> {
   return new Map(entriesOf(text).map((entry) => [entry.key, entry]))
 }
-
-const options: fc.Arbitrary<MigenvOptions> = fc.record(
-  {
-    add: fc.boolean(),
-    remove: fc.boolean(),
-    reorder: fc.boolean(),
-    useTemplateDefaults: fc.boolean(),
-    extrasHeader: fc.constantFrom(false as const, '# extra'),
-    newline: fc.constantFrom(
-      'template' as const,
-      'current' as const,
-      'lf' as const,
-      'crlf' as const,
-    ),
-  },
-  { requiredKeys: [] },
-)
 
 describe('align', () => {
   it('follows the example in its doc comment', () => {
@@ -79,7 +61,7 @@ describe('align', () => {
 })
 
 describe('align properties', () => {
-  test.prop([envText, envText, options])(
+  test.prop([envText, envText, alignOptions])(
     'keeps every non-empty value unless the key is removed',
     (current, template, opts) => {
       const result = align(current, template, opts)
@@ -91,12 +73,12 @@ describe('align properties', () => {
     },
   )
 
-  test.prop([anyText, anyText, options])('is idempotent', (current, template, opts) => {
+  test.prop([anyText, anyText, alignOptions])('is idempotent', (current, template, opts) => {
     const once = align(current, template, opts).text
     expect(align(once, template, opts).text).toBe(once)
   })
 
-  test.prop([envText, envText, options])(
+  test.prop([envText, envText, alignOptions])(
     'never changes the line of a protected key',
     (current, template, opts) => {
       const protect = ['A', 'api.*']
@@ -110,7 +92,7 @@ describe('align properties', () => {
     },
   )
 
-  test.prop([envText, envText, options])(
+  test.prop([envText, envText, alignOptions])(
     'keeps every current key with remove: false',
     (current, template, opts) => {
       const result = align(current, template, { ...opts, remove: false })
