@@ -3,8 +3,17 @@ name: ci
 on:
   push:
     branches: [main, release/*]
+    paths-ignore: &docs-only
+      - '**.md'
+      - 'base/**'
+      - '.agents/**'
+      - 'skills-lock.json'
+      - '.kiritanconfig'
+      - 'LICENSE'
+      - '.github/ISSUE_TEMPLATE/**'
   pull_request:
     branches: [main, release/*]
+    paths-ignore: *docs-only
 
 jobs:
   test:
