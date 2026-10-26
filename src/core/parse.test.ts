@@ -25,9 +25,15 @@ describe('parse', () => {
     expect(doc.nodes[0]).toMatchObject({ rawValue: '"a\nb"' })
   })
 
-  it('treats \\" as an escape only inside double quotes', () => {
+  it('closes a quoted value where dotenv does', () => {
     expect(entriesOf('A="a\\"b"\n')[0]?.rawValue).toBe('"a\\"b"')
-    expect(entriesOf("B='a\\'\n")[0]?.rawValue).toBe("'a\\'")
+    expect(entriesOf("B='a\\'b' # c\n")[0]?.rawValue).toBe("'a\\'b' # c")
+    expect(parse('C="x" y"\n').nodes[0]?.kind).toBe('unknown')
+    // `\\"` does not end the value: dotenv passes over any quote right after a backslash.
+    expect(parse('D="\\\\"\nD="\n"\n').nodes.map((n) => [n.kind, n.raw])).toEqual([
+      ['entry', 'D="\\\\"\nD="'],
+      ['unknown', '"'],
+    ])
   })
 
   it('marks only the line with an unclosed quote as unknown', () => {

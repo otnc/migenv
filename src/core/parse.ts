@@ -52,6 +52,7 @@ const KEY = '[A-Za-z_][A-Za-z0-9_.-]*'
 const ENTRY_START = new RegExp(`^\\s*(export\\s+)?(${KEY})\\s*=`)
 const COMMENTED_OUT_ENTRY = new RegExp(`^\\s*#\\s*(?:export\\s+)?(${KEY})\\s*=`)
 const QUOTES = new Set(['"', "'", '`'])
+const CLOSING_QUOTE_TAIL = /^\s*(?:#[^\n]*)?$/
 
 interface Line {
   readonly text: string
@@ -168,35 +169,39 @@ function parseNode(lines: readonly Line[], index: number): { node: EnvNode; span
     return { node: entry(valueStart, first.eol, isEmpty), span: 1 }
   }
 
-  // The opening quote may be followed by line breaks, so keep reading lines until it closes.
-  const openAt = valueStart.indexOf(quote)
-  let rawValue = valueStart
-  let searchFrom = openAt + 1
-  let last = first
+  // A quoted value may span lines, so the closing quote is searched for in the rest of the file.
+  const rest = lines
+    .slice(index)
+    .map((l) => l.text + l.eol)
+    .join('')
+  const openAt = keyPart.length + valueStart.indexOf(quote)
+  const closeAt = findClosingQuote(rest, quote, openAt)
+  if (closeAt === -1) return singleLine('unknown')
+
+  let lineStart = 0
   for (let span = 1; ; span++) {
-    const closeAt = findClosingQuote(rawValue, quote, searchFrom)
-    if (closeAt !== -1) {
-      return { node: entry(rawValue, last.eol, closeAt === openAt + 1), span }
+    const current = lines[index + span - 1] as Line
+    const lineEnd = lineStart + current.text.length
+    if (closeAt < lineEnd) {
+      const rawValue = rest.slice(keyPart.length, lineEnd)
+      return { node: entry(rawValue, current.eol, closeAt === openAt + 1), span }
     }
-    const next = lines[index + span]
-    if (next === undefined) return singleLine('unknown')
-    searchFrom = rawValue.length + last.eol.length
-    rawValue += last.eol + next.text
-    last = next
+    lineStart = lineEnd + current.eol.length
   }
 }
 
-function findClosingQuote(value: string, quote: string, from: number): number {
-  for (let i = from; i < value.length; i++) {
-    const char = value[i]
-    // Like dotenv, only double quotes treat a backslash as an escape.
-    if (quote === '"' && char === '\\') {
-      i += 1
-      continue
-    }
-    if (char === quote) {
-      return i
-    }
+/**
+ * Finds the closing quote the way dotenv does, so both read the same value.
+ * A quote right after a backslash can be passed over, and the first one that is not ends the search.
+ * Of the quotes seen, the last one followed by nothing but spaces or a comment on its line closes the value.
+ */
+function findClosingQuote(text: string, quote: string, openAt: number): number {
+  let closeAt = -1
+  for (let at = text.indexOf(quote, openAt + 1); at !== -1; at = text.indexOf(quote, at + 1)) {
+    const lineBreak = text.indexOf('\n', at)
+    const restOfLine = text.slice(at + 1, lineBreak === -1 ? undefined : lineBreak)
+    if (CLOSING_QUOTE_TAIL.test(restOfLine)) closeAt = at
+    if (text[at - 1] !== '\\') break
   }
-  return -1
+  return closeAt
 }
