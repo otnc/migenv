@@ -87,7 +87,7 @@
     "prepublishOnly": "npm run build"
   },
   "dependencies": {
-    "@kiritan/runtime": "^0.2.1",
+    "@kiritan/runtime": "^0.3.0",
     "citty": "^0.2.2",
     "consola": "^3.4.2"
   },
@@ -102,7 +102,7 @@
     "eslint-plugin-n": "^18.5.0",
     "fast-check": "^4.10.2",
     "globals": "^17.13.0",
-    "kiritan": "^0.6.1",
+    "kiritan": "^0.7.1",
     "prettier": "^3.9.10",
     "publint": "^0.3.25",
     "tsdown": "^0.23.2",
