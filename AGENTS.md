@@ -1,0 +1,33 @@
+# AGENTS.md
+
+migenv is an npm package that brings `.env` and `.dev.vars` files in line with their templates (`.env.example` and the like) without changing any existing non-empty value. It has two entry points: `migenv` (`src/core`, string-only) and `migenv/node` (`src/node`, file system).
+
+[CONTRIBUTING.md](CONTRIBUTING.md) is the full guide. Read its "How the code is organized" and "Rules the code keeps" sections before changing `src/`.
+
+## Commands
+
+- Install: `npm install` (Node 24, see `.nvmrc`)
+- Tests: `npm run test`, or one file with `npx vitest run src/core/align.test.ts`
+- Types: `npm run typecheck`
+- Format and lint: `npm run ci` to check, `npm run check` to fix
+- Package shape: `npm run build && npm run lint:pkg`
+- Node 18 and 20 loading: `npm run build && npm run test:compat`
+
+Run `npm run ci && npm run typecheck && npm run test` before saying a change is done.
+
+## Things that are easy to get wrong
+
+- The published package supports Node 18, but development runs on Node 24. In `src/`, do not use APIs that Node 18 lacks; ESLint (`n/no-unsupported-features/...`) and `lib: ES2022` in `tsconfig.json` (`TS2550`) catch most of them. Tests are exempt.
+- `isolatedDeclarations` is on, so every exported function and constant needs an explicit type. `TS90xx` errors mean one is missing.
+- `exactOptionalPropertyTypes` is on. Option properties are typed `T | undefined` on purpose, because `undefined` means "not set".
+- Never put a value from an env file into a warning, an error message or a log.
+- `src/core` must not import from `node:*`.
+- Fixture files must not be named `.env*`, because `.gitignore` ignores those.
+- Every new source file must be exported from `src/core/index.ts` or `src/node/index.ts`, or the build leaves it out.
+
+## Writing
+
+- Code, comments, docs, commit messages and PR text are in English.
+- Comments are minimal: name things so that they need none, document exported APIs with JSDoc and an example, and comment only what a reader could misread.
+- Do not wrap prose at a fixed width. Break lines only at paragraph, list item and heading boundaries, in Markdown and comments alike.
+- Branches and commits follow the prefixes in CONTRIBUTING.md (`feat`, `fix`, `refactor`, `test`, `docs`, `chore`), one change per commit.
