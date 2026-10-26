@@ -1,5 +1,5 @@
 import { type MigenvOptions, resolveOptions } from './options'
-import { commentedOutKey, type EntryNode, parse } from './parse'
+import { commentedOutKey, entriesByKey, parse } from './parse'
 
 export interface DiffReport {
   /** Keys in the template that the current file lacks. */
@@ -21,23 +21,12 @@ export interface DiffReport {
  */
 export function diff(current: string, template: string, options?: MigenvOptions): DiffReport {
   const { duplicates } = resolveOptions(options)
-  const currentEntries = new Map<string, EntryNode>()
-  for (const node of parse(current).nodes) {
-    if (node.kind !== 'entry') continue
-    if (duplicates === 'first' && currentEntries.has(node.key)) continue
-    currentEntries.set(node.key, node)
-  }
-
-  const templateKeys: string[] = []
-  const optionalKeys = new Set<string>()
-  for (const node of parse(template).nodes) {
-    if (node.kind === 'entry' && !templateKeys.includes(node.key)) {
-      templateKeys.push(node.key)
-    } else if (node.kind === 'comment') {
-      const key = commentedOutKey(node)
-      if (key !== undefined) optionalKeys.add(key)
-    }
-  }
+  const currentEntries = entriesByKey(parse(current), duplicates === 'first' ? 'first' : 'last')
+  const templateDoc = parse(template)
+  const templateKeys = [...entriesByKey(templateDoc, 'first').keys()]
+  const optionalKeys = new Set(
+    templateDoc.nodes.flatMap((node) => (node.kind === 'comment' ? [commentedOutKey(node)] : [])),
+  )
 
   const currentKeys = [...currentEntries.keys()]
   const sharedInCurrentOrder = currentKeys.filter((key) => templateKeys.includes(key))
