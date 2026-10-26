@@ -1,6 +1,13 @@
 import { MigenvError } from './errors'
 import { type MigenvOptions, type ResolvedOptions, resolveOptions } from './options'
-import { type EntryNode, type EnvDocument, type EnvNode, parse, stringify } from './parse'
+import {
+  commentedOutKey,
+  type EntryNode,
+  type EnvDocument,
+  type EnvNode,
+  parse,
+  stringify,
+} from './parse'
 
 export type WarningCode = 'unknown-line' | 'duplicate-key' | 'protected'
 
@@ -51,8 +58,6 @@ interface Context {
   readonly chosen: ReadonlyMap<string, EntryNode>
   readonly report: Report
 }
-
-const COMMENTED_OUT_KEY = /^\s*#\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_.-]*)\s*=/
 
 /**
  * Rewrites `current` so that it follows `template`: the same key order and comments, missing keys added from the template, and keys the template does not have collected at the end.
@@ -208,7 +213,7 @@ function followTemplate(context: Context): EnvNode[] {
     if (node.kind === 'blank') {
       output.push(node)
     } else if (node.kind === 'comment') {
-      const key = COMMENTED_OUT_KEY.exec(node.raw)?.[1]
+      const key = commentedOutKey(node)
       const currentEntry = key === undefined ? undefined : chosen.get(key)
       // `# KEY=` in the template marks an optional key; the current line takes the comment's place.
       if (

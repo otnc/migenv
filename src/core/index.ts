@@ -5,6 +5,7 @@ export {
   type Warning,
   type WarningCode,
 } from './align'
+export { type DiffReport, diff } from './diff'
 export { MigenvError, type MigenvErrorCode } from './errors'
 export {
   DEFAULT_OPTIONS,
