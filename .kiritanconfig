@@ -6,4 +6,6 @@ export default defineConfig({
   naming: { template: '{base}.{locale}.{ext}' },
   markdown: { alertBlankLineSpaces: 3 },
   sources: [{ glob: 'base/README.base.md', strategy: 'inline' }],
+  // The CLI's messages, so that `kiritan check` catches a key missing its en or ja text.
+  runtime: { sources: [{ glob: 'src/cli/*.i18n.ts', strategy: 'colocated' }] },
 })

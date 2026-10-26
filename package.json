@@ -22,7 +22,8 @@
     "cloudflare-workers",
     "migrate",
     "sync",
-    "template"
+    "template",
+    "cli"
   ],
   "homepage": "https://github.com/otnc/migenv#readme",
   "bugs": {
@@ -58,18 +59,21 @@
     },
     "./package.json": "./package.json"
   },
+  "bin": {
+    "migenv": "dist/cli/index.mjs"
+  },
   "files": [
     "dist"
   ],
   "engines": {
-    "node": ">=18"
+    "node": ">=18.3"
   },
   "scripts": {
     "build": "tsdown",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "test:compat": "node --test test-compat/esm.test.mjs test-compat/cjs.test.cjs",
+    "test:compat": "node --test test-compat/esm.test.mjs test-compat/cjs.test.cjs test-compat/cli.test.mjs",
     "typecheck": "tsc --noEmit",
     "lint": "eslint",
     "lint:fix": "eslint --fix",
@@ -100,5 +104,10 @@
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.72.0",
     "vitest": "^5.0.5"
+  },
+  "dependencies": {
+    "@kiritan/runtime": "^0.2.1",
+    "citty": "^0.2.2",
+    "consola": "^3.4.2"
   }
 }
