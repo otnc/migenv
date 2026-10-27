@@ -3,8 +3,21 @@ const { mkdtemp, readFile, rm, writeFile } = require('node:fs/promises')
 const { tmpdir } = require('node:os')
 const { join } = require('node:path')
 const { test } = require('node:test')
-const { align, parseDirectives, prune, fill } = require('migenv')
+const { align, parseDirectives, prune, fill, setValues } = require('migenv')
 const { migrateFile, pruneFile, fillFile } = require('migenv/node')
+
+test('setValues works through require', () => {
+  const values = new Map([
+    ['A', 'new'],
+    ['B', '"quoted # value"'],
+  ])
+  const result = setValues('A=old\r\nKEEP=private\r\n', values)
+  assert.equal(result.text, 'A=new\r\nKEEP=private\r\nB="quoted # value"\r\n')
+  assert.deepEqual(result.updated, ['A'])
+  assert.deepEqual(result.added, ['B'])
+  assert.equal(setValues(result.text, values).changed, false)
+  assert.equal(setValues('A=old\n', values, { protect: ['A'], add: false }).text, 'A=old\n')
+})
 
 test('generation APIs work through require on every supported Node version', async () => {
   assert.equal(

@@ -1,6 +1,11 @@
 /** Option validation, parsing, missing files and generation failures. Error messages never include env values or custom generator errors. */
 export type MigenvErrorCode =
-  'UNKNOWN_LINE' | 'DUPLICATE_KEY' | 'INVALID_OPTION' | 'FILE_NOT_FOUND' | 'GENERATION_FAILED'
+  | 'UNKNOWN_LINE'
+  | 'DUPLICATE_KEY'
+  | 'INVALID_OPTION'
+  | 'FILE_NOT_FOUND'
+  | 'GENERATION_FAILED'
+  | 'INVALID_VALUE'
 
 /**
  * The error migenv throws. Messages name keys and line numbers but never values.

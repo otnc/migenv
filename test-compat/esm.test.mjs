@@ -5,10 +5,23 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { align, parseDirectives, prune, fill } from 'migenv'
+import { align, parseDirectives, prune, fill, setValues } from 'migenv'
 import { migrateFile, pruneFile, fillFile } from 'migenv/node'
 
 const fixtures = fileURLToPath(new URL('../test/fixtures/align', import.meta.url))
+
+test('setValues works through import', () => {
+  const values = new Map([
+    ['A', 'new'],
+    ['B', '"quoted # value"'],
+  ])
+  const result = setValues('A=old\r\nKEEP=private\r\n', values)
+  assert.equal(result.text, 'A=new\r\nKEEP=private\r\nB="quoted # value"\r\n')
+  assert.deepEqual(result.updated, ['A'])
+  assert.deepEqual(result.added, ['B'])
+  assert.equal(setValues(result.text, values).changed, false)
+  assert.equal(setValues('A=old\n', values, { protect: ['A'], add: false }).text, 'A=old\n')
+})
 
 test('generation APIs work through import on every supported Node version', async () => {
   assert.equal(
