@@ -8,10 +8,10 @@
 :::kiritan{locale=en}
 Migrate `.env` and `.dev.vars` files to match their `.example` templates without changing existing values.
 
-migenv reorders your env file to follow its template and adds the keys it is missing. **A non-empty value is never changed, not even by one character.**
+migenv reorders your env file to follow its template and adds the keys it is missing. **Alignment and generation never change a non-empty value, not even by one character.** To explicitly overwrite selected values, use `setValues`.
 :::
 :::kiritan{locale=ja}
-`.env` や `.dev.vars` の並びを、`.env.example` などのテンプレートに揃え、不足しているキーを追加します。**空でない既存の値は 1 文字も変えません。**
+`.env` や `.dev.vars` の並びを、`.env.example` などのテンプレートに揃え、不足しているキーを追加します。**並べ替えや値の生成では、空でない既存の値は 1 文字も変えません。** 指定した値を明示的に上書きするには `setValues` を使います。
 :::
 
 :::kiritan{locale=en}
@@ -223,6 +223,57 @@ const result = align(currentText, templateText, { remove: true })
 result.text // 揃えた内容
 result.changed // 元と違えば true
 ```
+:::
+
+:::kiritan{locale=en}
+### Set values explicitly
+
+`setValues` overwrites selected keys, including non-empty values. Pass a `ReadonlyMap<string, string>` containing raw env syntax after `=`, including any quotes and inline comments. Values are not decoded or automatically escaped, so `new Map([['LABEL', '"hello # world"']])` writes `LABEL="hello # world"`.
+
+```ts
+import { setValues } from 'migenv'
+
+const result = setValues(currentText, new Map([
+  ['ORIGIN', 'https://example.com'],
+  ['LABEL', '"hello # world"'],
+]), { protect: ['SESSION_SECRET'] })
+
+result.text    // updated env content
+result.updated // existing keys whose raw values changed
+result.added   // missing keys added in map order
+result.skipped // protected keys, or missing keys with add: false
+```
+
+Unrelated lines, comments, BOM, mixed line endings and the existing final-newline style stay intact. Updated entries keep their key prefix, including `export` and spacing before `=`; their entire raw value is replaced. Missing keys are appended using the current file's line ending (LF for an empty file), or inserted before the first unparseable line. Set `add: false` to update existing keys only.
+
+All occurrences of a requested key are updated together so a later duplicate cannot hide an update. `duplicates: 'first'` and `'last'` both keep and update every occurrence; `'error'` rejects duplicate keys. If `protect` matches any occurrence, the entire key is skipped. Protection also prevents adding a missing key. `strict: true` rejects unparseable lines; otherwise they are kept with warnings. Other alignment and file options are ignored.
+
+Quoted multiline values are supported. Invalid keys, unclosed quotes and raw values that introduce extra entries throw `INVALID_VALUE`, with no values in the message. If combining valid entries would change how neighboring quoted values read, the original text is returned with an `ambiguous-quote` warning and every requested key in `skipped`. Reapplying the same values changes nothing. For file or remote operations, pass the returned text to your existing write operation; `writeFileAtomic` is available from `migenv/node`.
+:::
+:::kiritan{locale=ja}
+### 指定した値を上書きする
+
+`setValues` は、指定したキーの値を、空でない値も含めて上書きします。`ReadonlyMap<string, string>` には、クォートや行末コメントも含めた `=` より後ろの文字列を渡します。値のデコードや自動エスケープは行いません。たとえば `new Map([['LABEL', '"hello # world"']])` を渡すと、`LABEL="hello # world"` と書き込みます。
+
+```ts
+import { setValues } from 'migenv'
+
+const result = setValues(currentText, new Map([
+  ['ORIGIN', 'https://example.com'],
+  ['LABEL', '"hello # world"'],
+]), { protect: ['SESSION_SECRET'] })
+
+result.text    // 更新後の内容
+result.updated // 既存の値を書き換えたキー
+result.added   // Map の順で追加したキー
+result.skipped // 保護されたキーと、add: false で追加を見送ったキー
+```
+
+指定していない行やコメント、BOM、混在した改行コード、末尾の改行の有無は保ちます。書き換える行も、`export` や `=` より前の空白は残し、`=` より後ろだけをすべて置き換えます。足りないキーは、元のファイルの改行コードで末尾に追加します。空のファイルでは LF を使います。解釈できない行があれば、その最初の行の前に追加します。既存のキーだけを更新するには `add: false` を指定してください。
+
+同じキーが複数の行にあるときは、後ろの行の値が更新を打ち消さないよう、すべての行を更新します。`duplicates: 'first'` と `'last'` はどちらも重複した行を残して更新し、`'error'` なら重複をエラーにします。一つでも `protect` の対象になる行があれば、そのキーの更新はすべて見送ります。保護されたキーは新規追加もしません。`strict: true` なら解釈できない行をエラーにし、通常は行を残して警告します。並べ替えやファイル操作など、ほかのオプションは無視します。
+
+クォートで囲んだ複数行の値も渡せます。キー名が不正、クォートが閉じていない、値に別のキーの行が混ざっているときは、値をメッセージに含めずに `INVALID_VALUE` を返します。前後のクォートの影響で値の読み方が変わるときは、元の文字列と `ambiguous-quote` の警告を返し、指定したキーをすべて `skipped` に入れます。同じ値を再び設定しても内容は変わりません。ファイルやリモートの更新には、返された文字列を既存の書き込み処理に渡してください。`migenv/node` の `writeFileAtomic` も使えます。
 :::
 
 :::kiritan{locale=en}
@@ -490,7 +541,7 @@ const result = fill('# @generate pair\nPUBLIC_KEY=\nPRIVATE_KEY=\n', {
 :::kiritan{locale=en}
 ## Errors and warnings
 
-Errors are `MigenvError`s whose `error.code` is one of `INVALID_OPTION`, `UNKNOWN_LINE`, `DUPLICATE_KEY`, `FILE_NOT_FOUND` and `GENERATION_FAILED`. Check `error.code` rather than `instanceof`, which fails when both the ESM and the CommonJS build are loaded.
+Errors are `MigenvError`s whose `error.code` is one of `INVALID_OPTION`, `INVALID_VALUE`, `UNKNOWN_LINE`, `DUPLICATE_KEY`, `FILE_NOT_FOUND` and `GENERATION_FAILED`. Check `error.code` rather than `instanceof`, which fails when both the ESM and the CommonJS build are loaded.
 
 A line that cannot be parsed, such as one with an unclosed quote, is kept as it is and reported by line number in `result.warnings`. Warnings and error messages name keys and line numbers only, never values.
 
@@ -499,7 +550,7 @@ migenv reads quotes the way dotenv does, so a quoted value whose closing quote c
 :::kiritan{locale=ja}
 ## エラーと警告
 
-エラー時は `MigenvError` が発生します。`error.code` は `INVALID_OPTION`、`UNKNOWN_LINE`、`DUPLICATE_KEY`、`FILE_NOT_FOUND`、`GENERATION_FAILED` のいずれかです。ESM 版と CommonJS 版を同時に使うと `instanceof` で判定できないことがあるため、エラーの判定には `error.code` を使ってください。
+エラー時は `MigenvError` が発生します。`error.code` は `INVALID_OPTION`、`INVALID_VALUE`、`UNKNOWN_LINE`、`DUPLICATE_KEY`、`FILE_NOT_FOUND`、`GENERATION_FAILED` のいずれかです。ESM 版と CommonJS 版を同時に使うと `instanceof` で判定できないことがあるため、エラーの判定には `error.code` を使ってください。
 
 閉じクォートのない行のように解釈できない行は、消さずにそのまま残し、`result.warnings` に行番号を出します。警告とエラーのメッセージには、キー名と行番号だけを入れ、値は入れません。
 
