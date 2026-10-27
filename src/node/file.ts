@@ -19,6 +19,8 @@ import {
   MigenvError,
   type MigenvOptions,
   resolveOptions,
+  parseDirectives,
+  prune,
 } from '../core/index'
 
 export interface MigrateFileResult extends AlignResult {
@@ -72,6 +74,38 @@ export async function migrateFile(
   }
 
   return { ...result, file, written, created: created && written, backupPath }
+}
+
+/**
+ * Removes only keys listed by `@retired` in the template, preserving the rest of the file. Supports `protect`, `strict`, `backup`, `backupDir` and `dryRun`; never creates a missing file.
+ * @example
+ * await pruneFile('.env', '.env.example', { backup: true })
+ */
+export const pruneFile = async (
+  file: string,
+  template: string,
+  options?: MigenvOptions,
+): Promise<MigrateFileResult> => {
+  const { dryRun, backup, backupDir } = resolveOptions(options)
+  const directives = parseDirectives(await readFile(template, 'utf8'))
+  const current = await unlessMissing(readFile(file, 'utf8'), undefined)
+  if (current === undefined) throw new MigenvError('FILE_NOT_FOUND', `${file} does not exist.`)
+  const result = prune(current, directives.retired, options)
+  const written = result.changed && !dryRun
+  const backupPath = written && backup ? await backUp(file, backupDir) : undefined
+  if (written) await writeFileAtomic(file, result.text)
+  return {
+    ...result,
+    warnings: [...directives.warnings, ...result.warnings],
+    renamed: [],
+    added: [],
+    extra: [],
+    droppedComments: [],
+    file,
+    written,
+    created: false,
+    backupPath,
+  }
 }
 
 /**

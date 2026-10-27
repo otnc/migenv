@@ -1,4 +1,5 @@
 import { MigenvError } from './errors'
+import { parseDirectives } from './directives'
 import { type MigenvOptions, type ResolvedOptions, resolveOptions } from './options'
 import {
   commentedOutKey,
@@ -14,8 +15,16 @@ import {
  * `'unknown-line'`: a line could not be parsed. `'duplicate-key'`: a key appears more than once in the current file.
  * `'protected'`: `protect` stopped an action, which is also listed in `AlignResult.protectedSkips`.
  * `'ambiguous-quote'`: the result would change how a quoted value reads, so `align` returned `current` unchanged.
+ * `'invalid-directive'`: a template directive is unsupported or malformed. `'rename-conflict'`: a rename could not be applied. `'retired-key'`: a current key is listed as retired.
  */
-export type WarningCode = 'unknown-line' | 'duplicate-key' | 'protected' | 'ambiguous-quote'
+export type WarningCode =
+  | 'unknown-line'
+  | 'duplicate-key'
+  | 'protected'
+  | 'ambiguous-quote'
+  | 'invalid-directive'
+  | 'rename-conflict'
+  | 'retired-key'
 
 /** Something worth telling the user. Messages never contain values. */
 export interface Warning {
@@ -23,21 +32,23 @@ export interface Warning {
   readonly message: string
   /** Which input the warning is about. */
   readonly source: 'current' | 'template'
-  /** Set for `'unknown-line'` and `'duplicate-key'`: the line the warning is about. */
+  /** The input line the warning is about, when available. */
   readonly line?: number
-  /** Set for `'duplicate-key'` and `'protected'`. */
+  /** The affected key, when available. */
   readonly key?: string
 }
 
 /** An action that `protect` stopped for a key. */
 export interface ProtectedSkip {
   readonly key: string
-  /** `'default'`: an empty value was not replaced with the template's. `'remove'`: the key was kept although `remove` is on. */
-  readonly action: 'default' | 'remove'
+  /** The blocked operation: applying a default, deleting a key or renaming it. */
+  readonly action: 'default' | 'remove' | 'rename'
 }
 
 /** What `align` produced, and what it did to get there. */
 export interface AlignResult {
+  /** Keys whose names changed without decoding or rewriting their values. */
+  readonly renamed: readonly { readonly from: string; readonly to: string }[]
   readonly text: string
   /** Whether `text` differs from the `current` that was passed in. */
   readonly changed: boolean
@@ -54,6 +65,7 @@ export interface AlignResult {
 }
 
 interface Report {
+  readonly renamed: { readonly from: string; readonly to: string }[]
   readonly added: string[]
   readonly extra: string[]
   readonly removed: string[]
@@ -85,6 +97,7 @@ interface Context {
 export function align(current: string, template: string, options?: MigenvOptions): AlignResult {
   const resolved = resolveOptions(options)
   const report: Report = {
+    renamed: [],
     added: [],
     extra: [],
     removed: [],
@@ -92,17 +105,83 @@ export function align(current: string, template: string, options?: MigenvOptions
     droppedComments: [],
     warnings: [],
   }
-  const currentDoc = parse(current)
+  const originalDoc = parse(current)
   const templateDoc = parse(template)
-  checkUnknownLines(currentDoc, 'current', resolved, report)
+  const templateEntries = entriesByKey(templateDoc, 'first')
+  checkUnknownLines(originalDoc, 'current', resolved, report)
   checkUnknownLines(templateDoc, 'template', resolved, report)
+  const chosen = chooseEntries(originalDoc, resolved, report)
+  const directives = parseDirectives(template)
+  report.warnings.push(...directives.warnings)
+  const replacements = new Map<string, EntryNode>()
+  const consumed = new Set<string>()
+  if (resolved.rename) {
+    const sources = [...directives.renamedFrom.values()]
+    for (const [to, from] of directives.renamedFrom) {
+      const source = chosen.get(from)
+      if (source === undefined) continue
+      const target = chosen.get(to)
+      if (
+        resolved.isProtected(from, source.rawValue) ||
+        resolved.isProtected(to, target?.rawValue ?? source.rawValue)
+      ) {
+        skipForProtect(
+          from,
+          'rename',
+          `"${from}" could not be renamed to "${to}" because a key is protected.`,
+          report,
+        )
+        continue
+      }
+      // Overlapping rules are not applied in sequence: their result could depend on template order or change again on the next run.
+      if (
+        (target !== undefined && !target.isEmpty) ||
+        sources.includes(to) ||
+        sources.filter((key) => key === from).length > 1 ||
+        templateEntries.has(from)
+      ) {
+        report.warnings.push({
+          code: 'rename-conflict',
+          source: 'current',
+          key: from,
+          message: `"${from}" could not be renamed to "${to}" because the names conflict.`,
+        })
+        continue
+      }
+      const raw = source.raw.replace(
+        /^(\s*(?:export\s+)?)[A-Za-z_][A-Za-z0-9_.-]*/,
+        (_match, prefix: string) => prefix + to,
+      )
+      replacements.set(from, { ...source, key: to, raw })
+      consumed.add(to)
+      report.renamed.push({ from, to })
+    }
+  }
+  const currentDoc: EnvDocument = {
+    ...originalDoc,
+    nodes: originalDoc.nodes.flatMap<EnvNode>((node) => {
+      if (node.kind !== 'entry') return [node]
+      if (consumed.has(node.key)) return []
+      const replacement = replacements.get(node.key)
+      return replacement === undefined ? [node] : chosen.get(node.key) === node ? [replacement] : []
+    }),
+  }
+  for (const key of directives.retired) {
+    if (currentDoc.nodes.some((node) => node.kind === 'entry' && node.key === key))
+      report.warnings.push({
+        code: 'retired-key',
+        source: 'current',
+        key,
+        message: `"${key}" is retired. Use prune to remove it.`,
+      })
+  }
 
   const context: Context = {
     options: resolved,
     current: currentDoc,
     template: templateDoc,
-    chosen: chooseEntries(currentDoc, resolved, report),
-    templateEntries: entriesByKey(templateDoc, 'first'),
+    chosen: entriesByKey(currentDoc, resolved.duplicates === 'first' ? 'first' : 'last'),
+    templateEntries,
     report,
   }
   const nodes = resolved.reorder ? followTemplate(context) : keepCurrentOrder(context)
@@ -127,6 +206,7 @@ function readsBackAs(text: string, expected: EnvDocument): boolean {
 
 function leftUnchanged(current: string, warnings: readonly Warning[]): AlignResult {
   return {
+    renamed: [],
     text: current,
     changed: false,
     added: [],

@@ -12,7 +12,7 @@ import {
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { migrateFile, writeFileAtomic } from './file'
+import { migrateFile, pruneFile, writeFileAtomic } from './file'
 
 const onWindows = process.platform === 'win32'
 
@@ -29,6 +29,38 @@ beforeEach(async () => {
 
 afterEach(async () => {
   await rm(dir, { recursive: true, force: true })
+})
+
+describe('pruneFile', () => {
+  it('preserves bytes and timestamps without making backups when no key is removed', async () => {
+    await writeFile(envPath, '\uFEFF# local\r\nA=secret')
+    const before = await stat(envPath)
+    const result = await pruneFile(envPath, templatePath, { backup: true })
+    expect(result.written).toBe(false)
+    expect(result.backupPath).toBeUndefined()
+    expect((await stat(envPath)).mtimeMs).toBe(before.mtimeMs)
+    expect(await readdir(dir)).toHaveLength(2)
+    expect(await readFile(envPath, 'utf8')).toBe('\uFEFF# local\r\nA=secret')
+  })
+
+  it('never creates a missing target, even with create enabled', async () => {
+    await expect(pruneFile(envPath, templatePath, { create: true })).rejects.toThrow(
+      expect.objectContaining({ code: 'FILE_NOT_FOUND' }),
+    )
+    expect(await readdir(dir)).toEqual(['.env.example'])
+  })
+
+  it('makes a private backup in the requested directory before removing retired keys', async () => {
+    await writeFile(templatePath, '# @retired OLD\n')
+    await writeFile(envPath, 'OLD=secret\nKEEP=value\n')
+    const backupDir = join(dir, 'backups')
+    const result = await pruneFile(envPath, templatePath, { backup: true, backupDir })
+    expect(result.removed).toEqual(['OLD'])
+    expect(result.written).toBe(true)
+    expect(await readFile(result.backupPath as string, 'utf8')).toBe('OLD=secret\nKEEP=value\n')
+    expect(await readFile(envPath, 'utf8')).toBe('KEEP=value\n')
+    if (!onWindows) expect((await stat(result.backupPath as string)).mode & 0o777).toBe(0o600)
+  })
 })
 
 describe('migrateFile', () => {

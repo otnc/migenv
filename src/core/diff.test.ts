@@ -2,9 +2,15 @@ import { describe, expect, it } from 'vitest'
 import { diff } from './diff'
 
 describe('diff', () => {
+  it('reports retired current keys independently of the extra-key policy', () => {
+    expect(
+      diff('OLD=secret\nKEEP=value\n', '# @retired OLD ABSENT\nKEEP=\n', { remove: false }).retired,
+    ).toEqual(['OLD'])
+  })
   it('lists missing, empty and extra keys and spots a different order', () => {
     expect(diff('B=\nA=1\nOLD=x\n', 'A=\nB=\nC=\n')).toEqual({
       missing: ['C'],
+      retired: [],
       empty: ['B'],
       extra: ['OLD'],
       orderDiffers: true,
@@ -14,6 +20,7 @@ describe('diff', () => {
   it('reports nothing for a file that matches its template', () => {
     expect(diff('A=1\nB=2\n', '# c\nA=\nB=\n')).toEqual({
       missing: [],
+      retired: [],
       empty: [],
       extra: [],
       orderDiffers: false,

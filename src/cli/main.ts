@@ -11,7 +11,7 @@ import {
 import { type ConsolaInstance, createConsola, LogLevels } from 'consola'
 import { version } from '../../package.json'
 import type { MigenvOptions } from '../core/index'
-import { migrateFile } from '../node/index'
+import { migrateFile, pruneFile } from '../node/index'
 import { commandArgs, flagValues, toMigenvOptions } from './args'
 import { createTranslator, type Translate } from './i18n'
 import { detectLocale } from './locale'
@@ -41,7 +41,7 @@ interface Pair {
   readonly template: string
 }
 
-type Mode = 'align' | 'check' | 'diff'
+type Mode = 'align' | 'check' | 'diff' | 'prune'
 
 const EXIT_OUT_OF_DATE = 1
 const EXIT_USAGE = 2
@@ -68,7 +68,9 @@ export async function run(rawArgs: readonly string[], io: CliIo): Promise<number
   const main = mainCommand(context)
 
   if (rawArgs.includes('--help') || rawArgs.includes('-h')) {
-    const subCommand = rawArgs.find((arg) => arg === 'align' || arg === 'check' || arg === 'diff')
+    const subCommand = rawArgs.find(
+      (arg) => arg === 'align' || arg === 'check' || arg === 'diff' || arg === 'prune',
+    )
     const usage =
       subCommand === undefined
         ? await renderUsage(main)
@@ -107,6 +109,7 @@ function mainCommand(context: Context): CommandDef {
       align: commandFor('align', context),
       check: commandFor('check', context),
       diff: commandFor('diff', context),
+      prune: commandFor('prune', context),
     },
     default: 'align',
   })
@@ -116,7 +119,7 @@ function commandFor(mode: Mode, context: Context): CommandDef<ArgsDef> {
   const { t } = context
   return defineCommand({
     meta: { name: mode, description: t(`command.${mode}`) },
-    args: commandArgs(t, mode === 'align'),
+    args: commandArgs(t, mode === 'align' || mode === 'prune', mode === 'prune'),
     run: async ({ args, rawArgs }) => {
       context.outcome.exitCode = await runMode(mode, args, rawArgs, context)
     },
@@ -136,8 +139,8 @@ async function runMode(
   for (const pair of pairs) {
     if (pair === undefined) continue
     const work =
-      mode === 'align'
-        ? alignPair(pair, options, args.yes === true, context)
+      mode === 'align' || mode === 'prune'
+        ? updatePair(pair, options, args.yes === true, context, mode)
         : previewPair(mode, pair, options, context)
     const code = await work.catch((error: unknown) => reportError(error, pair, context))
     exitCode = Math.max(exitCode, code)
@@ -167,16 +170,18 @@ function findPairs(args: ParsedArgs, { io, t, logger }: Context): (Pair | undefi
   })
 }
 
-async function alignPair(
+async function updatePair(
   pair: Pair,
   options: MigenvOptions,
   confirmed: boolean,
   context: Context,
+  mode: 'align' | 'prune',
 ): Promise<number> {
   const { io, t, logger } = context
   const file = display(pair.file, io)
-  if (options.remove === true && options.dryRun !== true && !confirmed) {
-    const preview = await migrateFile(pair.file, pair.template, { ...options, dryRun: true })
+  const migrate = mode === 'prune' ? pruneFile : migrateFile
+  if ((options.remove === true || mode === 'prune') && options.dryRun !== true && !confirmed) {
+    const preview = await migrate(pair.file, pair.template, { ...options, dryRun: true })
     if (preview.removed.length > 0) {
       const keys = preview.removed.join(', ')
       if (!io.interactive) {
@@ -194,7 +199,7 @@ async function alignPair(
     }
   }
 
-  const result = await migrateFile(pair.file, pair.template, options)
+  const result = await migrate(pair.file, pair.template, options)
   printChanges(pair, result, context)
   if (result.backupPath !== undefined) {
     logger.log(`  ${t('report.backup', { path: display(result.backupPath, io) })}`)
@@ -223,6 +228,14 @@ async function previewPair(
   })
 
   if (mode === 'diff') printChanges(pair, result, context)
+  else {
+    for (const message of warningMessages(
+      result.warnings,
+      { file, template: display(pair.template, io) },
+      t,
+    ))
+      logger.warn(message)
+  }
   if (!exists) logger.warn(t('check.missing', { file }))
   else if (result.changed) logger.warn(t('check.outOfDate', { file }))
   else logger.success(t('align.upToDate', { file }))

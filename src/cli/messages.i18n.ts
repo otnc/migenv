@@ -1,4 +1,30 @@
 const messages = {
+  'command.prune': {
+    en: 'Remove keys listed by @retired in the template after confirmation.',
+    ja: 'テンプレートの @retired にあるキーを、確認してから消します。',
+  },
+  'arg.rename': {
+    en: 'Move values from keys named by @renamed-from',
+    ja: '@renamed-from の古いキーから値を移す',
+  },
+  'arg.rename.negative': { en: 'Do not rename keys', ja: 'キーを改名しない' },
+  'report.renamed': { en: 'renamed', ja: '改名' },
+  'report.protectedRename': {
+    en: 'protected, rename skipped',
+    ja: 'protect されているので、改名しなかった',
+  },
+  'warning.invalidDirective': {
+    en: '%{file}: unsupported or malformed directive (line %{line})',
+    ja: '%{file}: 未対応または書式が正しくないディレクティブがあります（%{line} 行目）',
+  },
+  'warning.renameConflict': {
+    en: '%{file}: %{key} could not be renamed because the names conflict',
+    ja: '%{file}: 改名先に値があるか名前が競合するため、%{key} を改名しませんでした',
+  },
+  'warning.retiredKey': {
+    en: '%{file}: %{key} is retired. Run "migenv prune" to remove it.',
+    ja: '%{file}: %{key} は使われなくなったキーです。"migenv prune" で削除できます。',
+  },
   'command.main': {
     en: 'Migrate .env files to match their .example templates without changing existing values.',
     ja: '既存の値を変えずに、.env をテンプレートの .example に合わせて移行します。',
@@ -29,8 +55,8 @@ const messages = {
     ja: '表示の言語。en か ja。省略すると LC_ALL、LC_MESSAGES、LANG から決める',
   },
   'arg.yes': {
-    en: 'Remove keys with --remove without asking',
-    ja: '--remove でキーを消すとき、確認しない',
+    en: 'Remove keys with --remove or prune without asking',
+    ja: '--remove または prune でキーを消すとき、確認しない',
   },
   'arg.add': {
     en: 'Add keys that the template has and the file lacks',
@@ -132,8 +158,8 @@ const messages = {
     ja: '%{file} から %{keys} を消しますか？',
   },
   'remove.needsYes': {
-    en: '%{file}: --remove would delete %{keys}. Pass --yes to confirm when not in a terminal.',
-    ja: '%{file}: --remove で %{keys} が消えます。端末でないときは --yes を付けて確定してください。',
+    en: '%{file}: this operation would delete %{keys}. Pass --yes to confirm when not in a terminal.',
+    ja: '%{file}: この操作で %{keys} が消えます。端末でないときは --yes を付けて確定してください。',
   },
   'remove.skipped': { en: 'Skipped %{file}', ja: '%{file} は変えませんでした' },
 
