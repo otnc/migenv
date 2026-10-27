@@ -21,6 +21,13 @@ type FlagSpec = {
 /** The flags that map onto `MigenvOptions`, kept in one place so that citty's definitions and the conversion cannot drift apart. */
 const OPTION_FLAGS: readonly FlagSpec[] = [
   {
+    flag: 'rename',
+    option: 'rename',
+    type: 'boolean',
+    description: 'arg.rename',
+    negativeDescription: 'arg.rename.negative',
+  },
+  {
     flag: 'add',
     option: 'add',
     type: 'boolean',
@@ -70,8 +77,8 @@ const OPTION_FLAGS: readonly FlagSpec[] = [
   { flag: 'dry-run', option: 'dryRun', type: 'boolean', writes: true, description: 'arg.dryRun' },
 ]
 
-/** citty argument definitions for a command. `writing` adds the flags that only `align` uses. */
-export function commandArgs(t: Translate, writing: boolean): ArgsDef {
+/** citty argument definitions for a command, restricted to the operations it supports. */
+export function commandArgs(t: Translate, writing: boolean, pruning = false): ArgsDef {
   const args: ArgsDef = {
     files: { type: 'positional', required: false, description: t('arg.files') },
     template: { type: 'string', alias: 't', description: t('arg.template') },
@@ -80,6 +87,8 @@ export function commandArgs(t: Translate, writing: boolean): ArgsDef {
   if (writing) args.yes = { type: 'boolean', alias: 'y', description: t('arg.yes') }
 
   for (const spec of OPTION_FLAGS) {
+    if (pruning && !['protect', 'strict', 'backup', 'backupDir', 'dryRun'].includes(spec.option))
+      continue
     if (spec.writes === true && !writing) continue
     const description = t(spec.description)
     switch (spec.type) {

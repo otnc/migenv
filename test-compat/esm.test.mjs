@@ -5,10 +5,25 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { align } from 'migenv'
-import { migrateFile } from 'migenv/node'
+import { align, parseDirectives, prune } from 'migenv'
+import { migrateFile, pruneFile } from 'migenv/node'
 
 const fixtures = fileURLToPath(new URL('../test/fixtures/align', import.meta.url))
+
+test('migration APIs work through import', async () => {
+  const template = '# @retired OLD\n'
+  assert.equal(prune('OLD=x\nKEEP=y\n', parseDirectives(template).retired).text, 'KEEP=y\n')
+  const dir = await mkdtemp(join(tmpdir(), 'migenv-compat-prune-'))
+  try {
+    await writeFile(join(dir, 'template.env'), template)
+    await writeFile(join(dir, 'current.env'), 'OLD=x\nKEEP=y\n')
+    const result = await pruneFile(join(dir, 'current.env'), join(dir, 'template.env'))
+    assert.deepEqual(result.removed, ['OLD'])
+    assert.equal(await readFile(join(dir, 'current.env'), 'utf8'), 'KEEP=y\n')
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+})
 
 test('align matches every fixture through import', () => {
   for (const name of readdirSync(fixtures)) {

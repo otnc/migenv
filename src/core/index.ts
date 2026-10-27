@@ -6,6 +6,10 @@ export {
   type WarningCode,
 } from './align'
 export { type DiffReport, diff } from './diff'
+export { parseDirectives } from './directives'
+export type { DirectiveSet } from './directives'
+export { prune } from './prune'
+export type { PruneResult } from './prune'
 export { MigenvError, type MigenvErrorCode } from './errors'
 export { type MigenvOptions, type ProtectFn, type ResolvedOptions, resolveOptions } from './options'
 export { parse, stringify } from './parse'

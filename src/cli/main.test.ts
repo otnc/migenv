@@ -40,6 +40,49 @@ async function cli(
 
 const readEnv = (name = '.env'): Promise<string> => readFile(join(dir, name), 'utf8')
 
+describe('template migrations', () => {
+  it('renames through align and previews the same migration without printing values', async () => {
+    await writeFile(join(dir, '.env.example'), '# @renamed-from OLD\nNEW=\n# @retired SECRET\n')
+    const before = await readEnv()
+    const preview = await cli(['diff'])
+    expect(preview.output).toContain('OLD → NEW')
+    expect(preview.output).not.toContain('abc123')
+    expect(preview.output).not.toContain('s3cr3t')
+    expect(await readEnv()).toBe(before)
+    expect((await cli(['align', '--no-rename'])).code).toBe(0)
+    expect(await readEnv()).toContain('OLD=abc123')
+    await cli(['align'])
+    expect(await readEnv()).toContain('NEW=abc123')
+  })
+
+  it('requires confirmation for prune, supports dry runs and backs up only when writing', async () => {
+    await writeFile(join(dir, '.env.example'), '# @retired OLD\n')
+    const before = await readEnv()
+    expect((await cli(['prune'])).code).toBe(2)
+    expect(await readEnv()).toBe(before)
+    const preview = await cli(['prune', '--dry-run', '--backup'])
+    expect(preview.code).toBe(0)
+    expect(preview.output).toContain('OLD')
+    expect(preview.output).not.toContain('abc123')
+    expect(await readEnv()).toBe(before)
+    const result = await cli(['prune', '--yes', '--backup'])
+    expect(result.code).toBe(0)
+    expect(result.output).toContain('backup:')
+    expect(await readEnv()).toBe(before.replace('OLD=abc123\n', ''))
+    const { readdir } = await import('node:fs/promises')
+    const backup = (await readdir(dir)).find((name) => name.startsWith('.env.bak.'))
+    expect(backup).toBeDefined()
+    expect(await readEnv(backup)).toBe(before)
+  })
+
+  it('prunes only retired keys, honors protection and leaves comments and order alone', async () => {
+    await writeFile(join(dir, '.env.example'), '# @retired OLD SECRET\n')
+    const before = await readEnv()
+    expect((await cli(['prune', '--yes', '--protect', 'SECRET'])).code).toBe(0)
+    expect(await readEnv()).toBe(before.replace('OLD=abc123\n', ''))
+  })
+})
+
 describe('migenv align', () => {
   it('rewrites the file, lists the keys it touched and never prints a value', async () => {
     const { code, output } = await cli([])

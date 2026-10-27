@@ -5,6 +5,8 @@ export type ProtectFn = (key: string, rawValue: string) => boolean
 
 /** Options shared by every migenv function. Each function ignores the ones it does not use. */
 export interface MigenvOptions {
+  /** Move values from keys named by `@renamed-from`. Default `true`. */
+  readonly rename?: boolean | undefined
   /** Add keys that are in the template but not in the current file. Default `true`. */
   readonly add?: boolean | undefined
   /** Delete keys that are not in the template instead of keeping them at the end. Default `false`. */
@@ -38,6 +40,7 @@ export interface MigenvOptions {
 
 /** `MigenvOptions` with every default filled in, as returned by `resolveOptions`. */
 export interface ResolvedOptions {
+  readonly rename: boolean
   readonly add: boolean
   readonly remove: boolean
   readonly isProtected: ProtectFn
@@ -55,6 +58,7 @@ export interface ResolvedOptions {
 
 /** The value of each option when no layer sets it. */
 const DEFAULT_OPTIONS: Readonly<Omit<ResolvedOptions, 'isProtected' | 'backupDir'>> = {
+  rename: true,
   add: true,
   remove: false,
   reorder: true,

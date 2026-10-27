@@ -5,6 +5,7 @@ describe('resolveOptions', () => {
   it('uses the documented defaults', () => {
     expect(resolveOptions()).toMatchObject({
       add: true,
+      rename: true,
       remove: false,
       reorder: true,
       useTemplateDefaults: true,

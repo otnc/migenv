@@ -7,7 +7,7 @@
 [![node](https://img.shields.io/node/v/migenv)](https://www.npmjs.com/package/migenv)
 [![license](https://img.shields.io/npm/l/migenv)](./LICENSE)
 
-`.env` や `.dev.vars` を、`.env.example` などのテンプレートに合わせて並べ直し、足りないキーを足します。**空でない既存の値は 1 文字も変えません。**
+`.env` や `.dev.vars` の並びを、`.env.example` などのテンプレートに揃え、不足しているキーを追加します。**空でない既存の値は 1 文字も変えません。**
 
 ## 何をするか
 
@@ -36,7 +36,7 @@ OLD_API_KEY=abc123
 SENTRY_DSN=https://key@sentry.io/1
 ```
 
-migenv に掛けると、こうなります。
+migenv で揃えると、こうなります。
 
 ```sh
 # App
@@ -55,8 +55,8 @@ OLD_API_KEY=abc123
 ```
 
 - 並びとコメントは、テンプレートと同じになります
-- `PORT` は、テンプレートの値 `3000` で足されます
-- 値はどれも元のままです。`APP_URL` もテンプレートの `http://localhost:3000` に戻りません
+- 不足していた `PORT` を、テンプレートの値 `3000` で追加します
+- 既存の値はそのままです。`APP_URL` もテンプレートの `http://localhost:3000` に戻りません
 - テンプレートでコメントアウトされた `# SENTRY_DSN=` は、任意のキーとして扱います。手元に値があれば、その位置に入ります
 - テンプレートにない `OLD_API_KEY` は、消さずに末尾へまとめます。消したいときは `remove: true` を渡します
 
@@ -66,7 +66,7 @@ OLD_API_KEY=abc123
 npm install --save-dev migenv
 ```
 
-Node.js 18.3 以降で動きます。API は ESM と CommonJS の両方で配布していて、それぞれに TypeScript の型定義が付いています。
+Node.js 18.3 以降で動きます。API は ESM と CommonJS に対応し、TypeScript の型定義も付属します。
 
 ## 使い方
 
@@ -76,14 +76,21 @@ Node.js 18.3 以降で動きます。API は ESM と CommonJS の両方で配布
 npx migenv              # .env を .env.example に揃える ("migenv align" と同じ)
 npx migenv check        # .env がずれていれば exit 1 で終える。CI 用
 npx migenv diff         # align で何が変わるかを表示する
+npx migenv prune --backup # @retired のキーを、確認してから消す
 npx migenv align .env.local --remove --protect SESSION_SECRET --backup
 ```
 
-各ファイルは `<ファイル>.example` に揃えます。それがなければ、ファイル名の最後の拡張子を外して探し直すので、`.env.local` は `.env.example` を使います。テンプレートを自分で決めるときは `-t, --template <パス>` を渡します。パスは migenv を実行したディレクトリが基準です。`check` と `diff` は何も書き換えず、どのコマンドも値を表示しません。
+テンプレートには `<ファイル>.example` を使います。見つからなければファイル名の最後の拡張子を外して探すので、`.env.local` には `.env.example` を使えます。別のテンプレートを指定するには `-t, --template <パス>` を渡します。パスの基準は、migenv を実行したディレクトリです。
 
-フラグは下のオプションに対応しています。`--no-add`、`--remove`、`-p, --protect <キー>` (カンマ区切りか、繰り返して指定)、`--no-reorder`、`--no-template-defaults`、`--newline <template|current|lf|crlf>`、`--duplicates <last|first|error>`、`--strict` と、`align` だけで使える `--backup`、`--backup-dir <ディレクトリ>`、`--create`、`--dry-run` です。`--remove` はキーを消す前に確認します。CI のように答えられない場面では `--yes` を付けてください。
+CLI のフラグは、下のオプションに対応しています。コマンドごとの一覧は `npx migenv <コマンド> --help` で確認できます。`-p, --protect <キー>` は、カンマ区切りでも繰り返しても指定できます。`--remove` と `prune` は削除前に確認するので、CI では `--yes` を付けてください。`check` と `diff` は何も書き換えず、どのコマンドも値を表示しません。
 
-終了コードは、成功なら 0、`check` でずれが見つかれば 1、使い方の誤り、ファイルやテンプレートがない、解釈に失敗したときは 2 です。表示は英語か日本語で、`--lang <en|ja>`、`LC_ALL`、`LC_MESSAGES`、`LANG` の順に見て決めます。
+| 終了コード | 意味 |
+| --- | --- |
+| 0 | 成功 |
+| 1 | `check` でテンプレートとのずれを検出 |
+| 2 | 引数が不正、ファイルやテンプレートがない、解析に失敗 |
+
+表示言語は英語か日本語です。`--lang <en|ja>`、`LC_ALL`、`LC_MESSAGES`、`LANG` の順に優先します。
 
 ### ファイルを書き換える
 
@@ -103,11 +110,11 @@ console.log(result.removed) // remove: true で消したキー
 console.log(result.backupPath) // 元の内容を残したバックアップのパス
 ```
 
-書き込みは、同じディレクトリの一時ファイルに書いてから置き換えるので、途中で落ちても半端な内容は残りません。既存のファイルの権限はそのまま引き継ぎ、新しく作るファイルとバックアップは `0o600` で作ります。結果が元と同じなら、ファイルにもタイムスタンプにも触りません。
+同じディレクトリの一時ファイルに書いてから元のファイルと置き換えるため、書き込みが中断しても、書きかけの内容は残りません。既存のファイルの権限は引き継ぎ、新しいファイルとバックアップは `0o600` で作ります。内容が変わらなければ、ファイルもタイムスタンプも更新しません。
 
 ### 文字列のまま揃える
 
-ファイルを使わない場面では、`migenv` の `align` に文字列を渡します。Node.js の API は使いません。
+`migenv` の `align` に文字列を渡すと、ファイルを読み書きせずに揃えられます。Node.js の API は使いません。
 
 ```ts
 import { align } from 'migenv'
@@ -119,44 +126,85 @@ result.changed // 元と違えば true
 
 ### 書き換えずに調べる
 
-`diff` は、何も変えずに差だけを返します。CI でずれを見つけたいときに使えます。
+`diff` は、不足しているキーや並びの違いを返します。CI での確認などに使えます。
 
 ```ts
 import { diff } from 'migenv'
 
 const report = diff(currentText, templateText)
-// { missing: ['PORT'], empty: [], extra: ['OLD_API_KEY'], orderDiffers: true }
+// { missing: ['PORT'], empty: [], extra: ['OLD_API_KEY'], retired: [], orderDiffers: true }
 ```
+
+### キー名の変更
+
+テンプレートのキーの直前に、変更前の名前を `@renamed-from` で指定します。キーはコメントアウトせずに書いてください。
+
+```sh
+# @renamed-from GOOGLE_ID
+GOOGLE_CLIENT_ID=
+```
+
+`align` は、新しいキーがないか値が空なら、古いキーの値を引き継いで名前を変えます。クォート、`=` の前後の空白、行末コメントもそのままです。`result.renamed` には、変更前後の名前が `{ from, to }` の形で入ります。`rename: false` または `--no-rename` で名前の変更を止められます。`add: false` でも名前の変更は行います。
+
+変更前か変更後のキーが `protect` の対象なら、名前を変えません。新しいキーに値があるか、古いキーがテンプレートにコメントアウトされずに残っているときは、`rename-conflict` の警告を出します。変更の指定が連鎖・循環しているときや、一つのキーに複数の新しい名前を指定したときも同じです。テンプレートにない古いキーは既定では残り、`remove: true` なら削除の対象になります。
+
+### 使わなくなったキーの削除
+
+テンプレートの任意の場所に、使わなくなったキーを `@retired` で指定します。複数あるときは空白で区切ります。
+
+```sh
+# @retired REGISTRATION INVITES_PER_USER
+```
+
+`align` は、指定したキーが残っていれば警告します。`diff(...).retired` でも一覧を取得できます。`migenv prune` は確認してからこれらのキーだけを削除し、保護されたキーとそれ以外の内容は残します。書き換えずに確認するには `--dry-run`、CI では `--yes`、バックアップを取るには `--backup` を使ってください。
+
+文字列を扱うときは `prune` にキーを渡します。ファイルには `pruneFile` を使います。
+
+```ts
+import { parseDirectives, prune } from 'migenv'
+import { pruneFile } from 'migenv/node'
+
+const directives = parseDirectives(templateText)
+const result = prune(currentText, directives.retired, { protect: ['KEEP'] })
+await pruneFile('.env', '.env.example', { backup: true })
+```
+
+`prune` は、指定したキーが重複していても、保護されていない行をすべて削除します。それ以外は、コメント、解釈できない行、BOM、改行コードも含めてそのまま残します。戻り値は `text`、`changed`、`removed`、`protectedSkips`、`warnings` です。
+
+`pruneFile` は `migrateFile` と同じファイル情報も返し、一時ファイル経由で書き込みます。`dryRun`、`backup`、`backupDir` が使え、`strict: true` なら対象ファイルの解釈できない行をエラーにします。対象ファイルがなければ、作成せずにエラーにします。並べ替えや追加など、ほかのオプションは無視します。
+
+どちらの指示も、`# @migenv renamed-from GOOGLE_ID`、`# @migenv retired REGISTRATION` のように `@migenv` を付けて書けます。未対応または書式が正しくない指示には、行番号付きの `invalid-directive` 警告を出します。指示の引数は表示しません。
 
 ## オプション
 
-`align`、`migrateFile`、`diff` は、最後の引数に同じ形のオブジェクトを受け取ります。どれも省略できます。
+`align`、`migrateFile`、`diff` の最後の引数に渡すオプションです。すべて省略できます。
 
 | オプション | 既定 | 意味 |
 | --- | --- | --- |
-| `add` | `true` | テンプレートにあって手元にないキーを、テンプレートの位置に足す |
+| `add` | `true` | テンプレートにあって手元にないキーを、テンプレートの位置に追加する |
 | `remove` | `false` | テンプレートにないキーを消す。`false` なら末尾にまとめて残す |
+| `rename` | `true` | `@renamed-from` に従ってキー名を変える。新しいキーがないか、値が空のときだけ行う |
 | `protect` | `[]` | 絶対に変えないキー。`'*_SECRET'` のように `*` が使える。`(key, rawValue) => boolean` の関数も渡せる |
 | `reorder` | `true` | 並びとコメントをテンプレートに合わせる。`false` なら手元の並びのまま、足すキーを末尾に付ける |
 | `useTemplateDefaults` | `true` | 手元の値が空のとき、テンプレートの値を入れる |
 | `extrasHeader` | `'# ---- Not in template (review manually) ----'` | テンプレートにないキーの上に付ける見出し。`false` なら付けない |
 | `newline` | `'template'` | 出力の改行コード。`'template'`、`'current'`、`'lf'`、`'crlf'` から選ぶ |
-| `duplicates` | `'last'` | 同じキーが 2 回あるとき、どちらを使うか。`'last'` は dotenv と同じ。`'error'` なら例外を投げる |
-| `strict` | `false` | 解釈できない行があれば例外を投げる。`false` なら行を残して警告を出す |
-| `backup` | `false` | 書き換える前に、元の内容を `<file>.bak.<日時>` に残す (`migrateFile` だけ) |
-| `backupDir` | 対象と同じ場所 | バックアップを置くディレクトリ (`migrateFile` だけ) |
-| `create` | `false` | 対象のファイルがなければ、テンプレートから作る (`migrateFile` だけ) |
-| `dryRun` | `false` | 書き込まずに結果だけを返す (`migrateFile` だけ) |
+| `duplicates` | `'last'` | キーが重複するとき、`'last'` は最後の値、`'first'` は最初の値を使う。`'last'` は dotenv と同じ。`'error'` はエラーにする |
+| `strict` | `false` | 解釈できない行をエラーにする。`false` なら行を残して警告を出す |
+| `backup` | `false` | 書き換える前に、元の内容を `<file>.bak.<日時>` に残す（`migrateFile` と `pruneFile` だけ） |
+| `backupDir` | 対象と同じ場所 | バックアップを置くディレクトリ（`migrateFile` と `pruneFile` だけ） |
+| `create` | `false` | 対象のファイルがなければ、テンプレートから作る（`migrateFile` だけ） |
+| `dryRun` | `false` | 書き込まずに結果だけを返す（`migrateFile` と `pruneFile` だけ） |
 
-`protect` に挙げたキーは、ほかのどのオプションより優先します。空でもテンプレートの値で埋めず、`remove: true` でも消しません。止めた操作は `result.protectedSkips` と `result.warnings` に残ります。
+`protect` は、ほかのすべてのオプションより優先します。対象のキーは、空でもテンプレートの値で埋めず、`remove: true` でも削除しません。保護によって見送った操作は `result.protectedSkips` と `result.warnings` に記録します。
 
 ## エラーと警告
 
-例外は `MigenvError` で、`error.code` に `INVALID_OPTION`、`UNKNOWN_LINE`、`DUPLICATE_KEY`、`FILE_NOT_FOUND` のどれかが入ります。ESM と CommonJS を同時に読むと `instanceof` が外れることがあるので、判定には `error.code` を使ってください。
+エラー時は `MigenvError` が発生します。`error.code` は `INVALID_OPTION`、`UNKNOWN_LINE`、`DUPLICATE_KEY`、`FILE_NOT_FOUND` のいずれかです。ESM 版と CommonJS 版を同時に使うと `instanceof` で判定できないことがあるため、エラーの判定には `error.code` を使ってください。
 
 閉じクォートのない行のように解釈できない行は、消さずにそのまま残し、`result.warnings` に行番号を出します。警告とエラーのメッセージには、キー名と行番号だけを入れ、値は入れません。
 
-migenv はクォートを dotenv と同じように読みます。そのため、`"C:\tools\"` のように閉じクォートの直前がバックスラッシュの値は、後ろの行まで続けて読まれることがあります。揃えるとこうした値の読み方が変わってしまうときは、`align` も `migrateFile` もファイルを変えずに、`ambiguous-quote` の警告を出します。
+migenv はクォートを dotenv と同じ規則で解釈します。`"C:\tools\"` のように閉じクォートの直前がバックスラッシュの値は、後ろの行まで一つの値として読み取られることがあります。並べ替えで値の解釈が変わるときは、`align` も `migrateFile` もファイルを変更せず、`ambiguous-quote` の警告を出します。
 
 ## やらないこと
 
