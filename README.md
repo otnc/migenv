@@ -78,14 +78,21 @@ migenv runs on Node.js 18.3 and later. The API ships as both ESM and CommonJS, w
 npx migenv              # align .env with .env.example (same as "migenv align")
 npx migenv check        # exit with 1 when .env is out of date, for CI
 npx migenv diff         # show what align would change
+npx migenv prune --backup # remove @retired keys after confirmation
 npx migenv align .env.local --remove --protect SESSION_SECRET --backup
 ```
 
-Each file is aligned with `<file>.example`. When that does not exist, migenv drops the file's last suffix and tries again, so `.env.local` falls back to `.env.example`. Pass `-t, --template <path>` to choose the template yourself. Paths are relative to the directory you run migenv in. `check` and `diff` never write, and no command ever prints a value.
+Each file uses `<file>.example` as its template. If that is missing, migenv drops the file's last suffix and tries again: `.env.local` falls back to `.env.example`. Choose a template with `-t, --template <path>`. Paths are relative to the directory you run migenv in.
 
-The flags follow the options below: `--no-add`, `--remove`, `-p, --protect <keys>` (comma-separated or repeated), `--no-reorder`, `--no-template-defaults`, `--newline <template|current|lf|crlf>`, `--duplicates <last|first|error>`, `--strict`, and for `align` only `--backup`, `--backup-dir <dir>`, `--create` and `--dry-run`. `--remove` asks before deleting keys; where nobody can answer, such as in CI, pass `--yes`.
+CLI flags correspond to the options below. Use `npx migenv <command> --help` for each command's flags. `-p, --protect <keys>` accepts comma-separated keys or repeated flags. `--remove` and `prune` ask before deleting keys; pass `--yes` in CI. `check` and `diff` never write, and no command prints values.
 
-The exit code is 0 on success, 1 when `check` finds a file out of date, and 2 for a usage error, a missing file or template, or a parse failure. Messages are in English or Japanese, chosen by `--lang <en|ja>`, then `LC_ALL`, `LC_MESSAGES` and `LANG`.
+| Exit code | Meaning |
+| --- | --- |
+| 0 | Success |
+| 1 | `check` found a file out of date |
+| 2 | Usage error, missing file or template, or parse failure |
+
+Messages are in English or Japanese, chosen by `--lang <en|ja>`, then `LC_ALL`, `LC_MESSAGES` and `LANG`.
 
 ### Rewrite a file
 
@@ -127,8 +134,48 @@ result.changed // true when it differs from currentText
 import { diff } from 'migenv'
 
 const report = diff(currentText, templateText)
-// { missing: ['PORT'], empty: [], extra: ['OLD_API_KEY'], orderDiffers: true }
+// { missing: ['PORT'], empty: [], extra: ['OLD_API_KEY'], retired: [], orderDiffers: true }
 ```
+
+### Rename keys
+
+Place `@renamed-from` immediately before an uncommented key in the template:
+
+```sh
+# @renamed-from GOOGLE_ID
+GOOGLE_CLIENT_ID=
+```
+
+`align` moves the old key's value to the new name when the new key is missing or empty, then removes the old name. Quotes, spacing around `=` and inline comments stay intact. `result.renamed` lists `{ from, to }` pairs. Set `rename: false` or `--no-rename` to disable renaming; `add: false` does not disable it.
+
+A protected old or new key blocks renaming. A `rename-conflict` warning means the new key already has a value, the old key is still uncommented in the template, or the rules overlap (chains, cycles or multiple new names for one old key). Old keys absent from the template stay by default and can be deleted with `remove: true`.
+
+### Remove unused keys
+
+List unused keys with `@retired` anywhere in the template, separated by spaces:
+
+```sh
+# @retired REGISTRATION INVITES_PER_USER
+```
+
+`align` warns when these keys remain, and `diff(...).retired` lists them. `migenv prune` removes only these keys after confirmation, keeping protected entries and all other content. Use `--dry-run` to preview, `--yes` for CI, and `--backup` to keep the original file.
+
+For strings, pass the keys to `prune`. For files, use `pruneFile`:
+
+```ts
+import { parseDirectives, prune } from 'migenv'
+import { pruneFile } from 'migenv/node'
+
+const directives = parseDirectives(templateText)
+const result = prune(currentText, directives.retired, { protect: ['KEEP'] })
+await pruneFile('.env', '.env.example', { backup: true })
+```
+
+`prune` removes every unprotected occurrence of each selected key, preserving all other bytes, including comments, unknown lines, BOM and line endings. It returns `text`, `changed`, `removed`, `protectedSkips` and `warnings`.
+
+`pruneFile` adds the same file metadata as `migrateFile` and uses atomic writes. It supports `dryRun`, `backup`, `backupDir` and `strict` for the current file. It never creates a missing file and ignores other alignment options.
+
+Both directives also accept the `@migenv` prefix, as in `# @migenv renamed-from GOOGLE_ID` and `# @migenv retired REGISTRATION`. Malformed or unsupported directives produce `invalid-directive` warnings with line numbers; their arguments are never shown.
 
 ## Options
 
@@ -138,6 +185,7 @@ const report = diff(currentText, templateText)
 | --- | --- | --- |
 | `add` | `true` | Add keys that the template has and your file lacks, at the template's position |
 | `remove` | `false` | Delete keys that the template does not have. When `false`, they are kept at the end |
+| `rename` | `true` | Move values from keys named by `@renamed-from` when the destination is missing or empty |
 | `protect` | `[]` | Keys that are never changed. `*` matches anything, as in `'*_SECRET'`. A `(key, rawValue) => boolean` function also works |
 | `reorder` | `true` | Follow the template's order and comments. When `false`, keep your order and append the added keys |
 | `useTemplateDefaults` | `true` | Use the template's value when yours is empty |
@@ -145,10 +193,10 @@ const report = diff(currentText, templateText)
 | `newline` | `'template'` | Line ending of the output: `'template'`, `'current'`, `'lf'` or `'crlf'` |
 | `duplicates` | `'last'` | Which value wins when a key appears twice. `'last'` matches dotenv, and `'error'` throws |
 | `strict` | `false` | Throw on lines that cannot be parsed. When `false`, they are kept with a warning |
-| `backup` | `false` | Save the original to `<file>.bak.<timestamp>` before rewriting (`migrateFile` only) |
-| `backupDir` | the file's directory | Where backups go (`migrateFile` only) |
+| `backup` | `false` | Save the original to `<file>.bak.<timestamp>` before rewriting (`migrateFile` and `pruneFile` only) |
+| `backupDir` | the file's directory | Where backups go (`migrateFile` and `pruneFile` only) |
 | `create` | `false` | Create the file from the template when it does not exist (`migrateFile` only) |
-| `dryRun` | `false` | Return the result without writing anything (`migrateFile` only) |
+| `dryRun` | `false` | Return the result without writing anything (`migrateFile` and `pruneFile` only) |
 
 `protect` wins over every other option: a protected key is not filled from the template even when empty, and not deleted even with `remove: true`. Each skipped action is listed in `result.protectedSkips` and `result.warnings`.
 
