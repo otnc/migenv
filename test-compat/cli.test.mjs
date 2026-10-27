@@ -30,6 +30,35 @@ test('the CLI checks and aligns a file', async () => {
   }
 })
 
+test('the CLI initializes and fills without relying on global Web Crypto', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'migenv-compat-generation-'))
+  try {
+    await writeFile(
+      join(dir, '.env.example'),
+      '# @generate hex:8\nTOKEN=\n\n# @generate base64url:8\nKEY=\n\n# @generate uuid\nID=\n',
+    )
+    assert.equal(migenv(['init', '--dry-run'], dir).status, 0)
+    await assert.rejects(readFile(join(dir, '.env')), { code: 'ENOENT' })
+    const initialized = migenv(['init'], dir)
+    assert.equal(initialized.status, 0, initialized.stderr)
+    const text = await readFile(join(dir, '.env'), 'utf8')
+    assert.match(text, /TOKEN=[a-f0-9]{16}\n/)
+    assert.match(text, /KEY=[A-Za-z0-9_-]{11}\n/)
+    assert.match(text, /ID=[a-f0-9-]{36}\n/)
+    assert.ok(!`${initialized.stdout}${initialized.stderr}`.includes(text.match(/TOKEN=(.+)/)[1]))
+    assert.equal(migenv(['init'], dir).status, 0)
+    assert.equal(await readFile(join(dir, '.env'), 'utf8'), text)
+    await writeFile(join(dir, '.env'), 'TOKEN=\nKEY=\nID=\n')
+    assert.equal(migenv(['fill'], dir).status, 0)
+    assert.match(
+      await readFile(join(dir, '.env'), 'utf8'),
+      /^TOKEN=[a-f0-9]{16}\nKEY=[A-Za-z0-9_-]{11}\nID=[a-f0-9-]{36}\n$/,
+    )
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+})
+
 test('the CLI renames and prunes without printing values', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'migenv-compat-migration-'))
   try {

@@ -13,6 +13,8 @@ import {
 } from 'node:fs/promises'
 import { basename, dirname, join } from 'node:path'
 import { setTimeout as sleep } from 'node:timers/promises'
+import { createGenerators } from '../core/generators'
+import { fillFromTemplate } from '../core/fill'
 import {
   type AlignResult,
   align,
@@ -64,7 +66,10 @@ export async function migrateFile(
     )
   }
 
-  const result = align(currentText ?? '', templateText, options)
+  const result = align(currentText ?? '', templateText, {
+    ...options,
+    generators: { ...createGenerators(randomBytes), ...options?.generators },
+  })
   const created = currentText === undefined
   const written = !dryRun && (created || result.changed)
   let backupPath: string | undefined
@@ -96,6 +101,7 @@ export const pruneFile = async (
   if (written) await writeFileAtomic(file, result.text)
   return {
     ...result,
+    filled: [],
     warnings: [...directives.warnings, ...result.warnings],
     renamed: [],
     added: [],
@@ -105,6 +111,42 @@ export const pruneFile = async (
     written,
     created: false,
     backupPath,
+  }
+}
+
+/**
+ * Generates empty values using the template's `@generate` rules, leaving all other content intact. Uses Node's cryptographic random source, including on Node 18. Supports backups and dry runs, and never creates a missing file; use `migrateFile` with `create: true, fill: true` for initialization.
+ * @example
+ * const result = await fillFile('.env', '.env.example', { backup: true })
+ * console.log(result.filled)
+ */
+export const fillFile = async (
+  file: string,
+  template: string,
+  options?: MigenvOptions,
+): Promise<MigrateFileResult> => {
+  const { dryRun, backup, backupDir } = resolveOptions(options)
+  const templateText = await readFile(template, 'utf8')
+  const current = await unlessMissing(readFile(file, 'utf8'), undefined)
+  if (current === undefined) throw new MigenvError('FILE_NOT_FOUND', `${file} does not exist.`)
+  const result = fillFromTemplate(current, templateText, {
+    ...options,
+    generators: { ...createGenerators(randomBytes), ...options?.generators },
+  })
+  const written = result.changed && !dryRun
+  const backupPath = written && backup ? await backUp(file, backupDir) : undefined
+  if (written) await writeFileAtomic(file, result.text)
+  return {
+    ...result,
+    file,
+    written,
+    created: false,
+    backupPath,
+    renamed: [],
+    added: [],
+    extra: [],
+    removed: [],
+    droppedComments: [],
   }
 }
 

@@ -40,6 +40,50 @@ async function cli(
 
 const readEnv = (name = '.env'): Promise<string> => readFile(join(dir, name), 'utf8')
 
+describe('fill and init', () => {
+  it('fills from template directives without aligning or printing generated values', async () => {
+    await writeFile(join(dir, '.env.example'), '# @generate hex:8\nTOKEN=\n\nMISSING=\n')
+    await writeFile(join(dir, '.env'), '# local\nEXISTING=private\nTOKEN=\n')
+    const before = await readEnv()
+    expect((await cli(['fill', '--dry-run', '--backup'])).code).toBe(0)
+    expect(await readEnv()).toBe(before)
+    const result = await cli(['fill', '--backup'])
+    expect(result.code).toBe(0)
+    const text = await readEnv()
+    expect(text).toMatch(/^# local\nEXISTING=private\nTOKEN=[a-f0-9]{16}\n$/)
+    expect(result.output).toContain('generated')
+    expect(result.output).not.toContain(text.match(/TOKEN=(.+)/)?.[1])
+    expect(result.output).not.toContain('private')
+    expect((await cli(['fill'])).output).toContain('up to date')
+  })
+
+  it('initializes missing files and preserves values on repeated init', async () => {
+    await writeFile(join(dir, '.dev.vars.example'), '# @generate uuid\nTOKEN=\n\nPORT=3000\n')
+    expect((await cli(['init', '.dev.vars', '--dry-run'])).code).toBe(0)
+    await expect(readEnv('.dev.vars')).rejects.toMatchObject({ code: 'ENOENT' })
+    expect((await cli(['init', '.dev.vars'])).code).toBe(0)
+    const initialized = await readEnv('.dev.vars')
+    expect(initialized).toMatch(/TOKEN=[a-f0-9-]{36}/)
+    expect(initialized).toContain('PORT=3000')
+    await cli(['init', '.dev.vars'])
+    expect(await readEnv('.dev.vars')).toBe(initialized)
+  })
+
+  it('supports align --fill and localized generation errors', async () => {
+    await writeFile(join(dir, '.env.example'), '# @generate base64url:8\nTOKEN=\n')
+    expect((await cli(['align', '--fill', '--protect', 'SECRET'])).code).toBe(0)
+    expect(await readEnv()).toMatch(/TOKEN=[A-Za-z0-9_-]{11}\n/)
+    await writeFile(join(dir, '.env.example'), '# @generate unknown:private-argument\nNEW=\n')
+    const before = await readEnv()
+    const result = await cli(['init', '--lang', 'ja'])
+    expect(result.code).toBe(2)
+    expect(result.output).toContain('値を生成できませんでした')
+    expect(result.output).not.toContain('private-argument')
+    expect(await readEnv()).toBe(before)
+    for (const command of ['fill', 'init']) expect((await cli([command, '--help'])).code).toBe(0)
+  })
+})
+
 describe('template migrations', () => {
   it('renames through align and previews the same migration without printing values', async () => {
     await writeFile(join(dir, '.env.example'), '# @renamed-from OLD\nNEW=\n# @retired SECRET\n')

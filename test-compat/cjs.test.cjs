@@ -3,8 +3,26 @@ const { mkdtemp, readFile, rm, writeFile } = require('node:fs/promises')
 const { tmpdir } = require('node:os')
 const { join } = require('node:path')
 const { test } = require('node:test')
-const { align, parseDirectives, prune } = require('migenv')
-const { migrateFile, pruneFile } = require('migenv/node')
+const { align, parseDirectives, prune, fill } = require('migenv')
+const { migrateFile, pruneFile, fillFile } = require('migenv/node')
+
+test('generation APIs work through require on every supported Node version', async () => {
+  assert.equal(
+    fill('# @generate custom\nA=\n', { generators: { custom: () => ({ A: 'generated' }) } }).text,
+    '# @generate custom\nA=generated\n',
+  )
+  const dir = await mkdtemp(join(tmpdir(), 'migenv-compat-fill-'))
+  try {
+    await writeFile(join(dir, 'template.env'), '# @generate hex:8\nA=\n')
+    await writeFile(join(dir, 'current.env'), 'A=\n')
+    assert.deepEqual((await fillFile(join(dir, 'current.env'), join(dir, 'template.env'))).filled, [
+      'A',
+    ])
+    assert.match(await readFile(join(dir, 'current.env'), 'utf8'), /^A=[a-f0-9]{16}\n$/)
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+})
 
 test('align works through require', () => {
   assert.equal(align('B=2\nA=1\n', 'A=\nB=\n').text, 'A=1\nB=2\n')

@@ -5,10 +5,28 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { align, parseDirectives, prune } from 'migenv'
-import { migrateFile, pruneFile } from 'migenv/node'
+import { align, parseDirectives, prune, fill } from 'migenv'
+import { migrateFile, pruneFile, fillFile } from 'migenv/node'
 
 const fixtures = fileURLToPath(new URL('../test/fixtures/align', import.meta.url))
+
+test('generation APIs work through import on every supported Node version', async () => {
+  assert.equal(
+    fill('# @generate custom\nA=\n', { generators: { custom: () => ({ A: 'generated' }) } }).text,
+    '# @generate custom\nA=generated\n',
+  )
+  const dir = await mkdtemp(join(tmpdir(), 'migenv-compat-fill-'))
+  try {
+    await writeFile(join(dir, 'template.env'), '# @generate hex:8\nA=\n')
+    await writeFile(join(dir, 'current.env'), 'A=\n')
+    assert.deepEqual((await fillFile(join(dir, 'current.env'), join(dir, 'template.env'))).filled, [
+      'A',
+    ])
+    assert.match(await readFile(join(dir, 'current.env'), 'utf8'), /^A=[a-f0-9]{16}\n$/)
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+})
 
 test('migration APIs work through import', async () => {
   const template = '# @retired OLD\n'

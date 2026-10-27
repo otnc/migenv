@@ -1,5 +1,6 @@
 import { MigenvError } from './errors'
 import { parseDirectives } from './directives'
+import { fillFromTemplate } from './fill'
 import { type MigenvOptions, type ResolvedOptions, resolveOptions } from './options'
 import {
   commentedOutKey,
@@ -16,6 +17,7 @@ import {
  * `'protected'`: `protect` stopped an action, which is also listed in `AlignResult.protectedSkips`.
  * `'ambiguous-quote'`: the result would change how a quoted value reads, so `align` returned `current` unchanged.
  * `'invalid-directive'`: a template directive is unsupported or malformed. `'rename-conflict'`: a rename could not be applied. `'retired-key'`: a current key is listed as retired.
+ * `'generation-conflict'`: generation was skipped because a group is incomplete, duplicated or partially initialized.
  */
 export type WarningCode =
   | 'unknown-line'
@@ -25,6 +27,7 @@ export type WarningCode =
   | 'invalid-directive'
   | 'rename-conflict'
   | 'retired-key'
+  | 'generation-conflict'
 
 /** Something worth telling the user. Messages never contain values. */
 export interface Warning {
@@ -41,12 +44,14 @@ export interface Warning {
 /** An action that `protect` stopped for a key. */
 export interface ProtectedSkip {
   readonly key: string
-  /** The blocked operation: applying a default, deleting a key or renaming it. */
-  readonly action: 'default' | 'remove' | 'rename'
+  /** The blocked operation: applying a default, deleting, renaming or generating a key. */
+  readonly action: 'default' | 'remove' | 'rename' | 'fill'
 }
 
 /** What `align` produced, and what it did to get there. */
 export interface AlignResult {
+  /** Keys filled by a generator when `fill: true`. */
+  readonly filled: readonly string[]
   /** Keys whose names changed without decoding or rewriting their values. */
   readonly renamed: readonly { readonly from: string; readonly to: string }[]
   readonly text: string
@@ -189,7 +194,21 @@ export function align(current: string, template: string, options?: MigenvOptions
   const text = stringify(output)
   if (!readsBackAs(text, output)) return leftUnchanged(current, report.warnings)
 
-  return { text, changed: text !== current, ...report }
+  if (!resolved.fill) return { text, changed: text !== current, filled: [], ...report }
+  const generated = fillFromTemplate(text, template, options)
+  return {
+    ...report,
+    text: generated.text,
+    changed: generated.text !== current,
+    filled: generated.filled,
+    protectedSkips: [...report.protectedSkips, ...generated.protectedSkips],
+    warnings: [
+      ...report.warnings,
+      ...generated.warnings.filter(
+        (warning) => warning.code !== 'invalid-directive' && warning.code !== 'unknown-line',
+      ),
+    ],
+  }
 }
 
 /**
@@ -206,6 +225,7 @@ function readsBackAs(text: string, expected: EnvDocument): boolean {
 
 function leftUnchanged(current: string, warnings: readonly Warning[]): AlignResult {
   return {
+    filled: [],
     renamed: [],
     text: current,
     changed: false,

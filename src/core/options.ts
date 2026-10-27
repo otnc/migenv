@@ -1,10 +1,15 @@
 import { MigenvError } from './errors'
+import type { Generator } from './generators'
 
 /** Decides protection from the key and its undecoded value, e.g. `(key, raw) => raw.startsWith('vault:')`. */
 export type ProtectFn = (key: string, rawValue: string) => boolean
 
 /** Options shared by every migenv function. Each function ignores the ones it does not use. */
 export interface MigenvOptions {
+  /** Generate empty values after alignment. Default `false`. */
+  readonly fill?: boolean | undefined
+  /** Custom synchronous generators, overriding built-ins with the same name. */
+  readonly generators?: Readonly<Record<string, Generator>> | undefined
   /** Move values from keys named by `@renamed-from`. Default `true`. */
   readonly rename?: boolean | undefined
   /** Add keys that are in the template but not in the current file. Default `true`. */
@@ -40,6 +45,8 @@ export interface MigenvOptions {
 
 /** `MigenvOptions` with every default filled in, as returned by `resolveOptions`. */
 export interface ResolvedOptions {
+  readonly fill: boolean
+  readonly generators: Readonly<Record<string, Generator>>
   readonly rename: boolean
   readonly add: boolean
   readonly remove: boolean
@@ -57,20 +64,22 @@ export interface ResolvedOptions {
 }
 
 /** The value of each option when no layer sets it. */
-const DEFAULT_OPTIONS: Readonly<Omit<ResolvedOptions, 'isProtected' | 'backupDir'>> = {
-  rename: true,
-  add: true,
-  remove: false,
-  reorder: true,
-  useTemplateDefaults: true,
-  extrasHeader: '# ---- Not in template (review manually) ----',
-  newline: 'template',
-  duplicates: 'last',
-  strict: false,
-  backup: false,
-  create: false,
-  dryRun: false,
-}
+const DEFAULT_OPTIONS: Readonly<Omit<ResolvedOptions, 'isProtected' | 'backupDir' | 'generators'>> =
+  {
+    fill: false,
+    rename: true,
+    add: true,
+    remove: false,
+    reorder: true,
+    useTemplateDefaults: true,
+    extrasHeader: '# ---- Not in template (review manually) ----',
+    newline: 'template',
+    duplicates: 'last',
+    strict: false,
+    backup: false,
+    create: false,
+    dryRun: false,
+  }
 
 const CHOICE_OPTIONS: ReadonlyMap<string, readonly string[]> = new Map([
   ['newline', ['template', 'current', 'lf', 'crlf']],
@@ -85,7 +94,11 @@ const CHOICE_OPTIONS: ReadonlyMap<string, readonly string[]> = new Map([
  * options.isProtected('SESSION_SECRET', '') // => true
  */
 export function resolveOptions(...layers: readonly (MigenvOptions | undefined)[]): ResolvedOptions {
-  const merged: Record<string, unknown> = { ...DEFAULT_OPTIONS, backupDir: undefined }
+  const merged: Record<string, unknown> = {
+    ...DEFAULT_OPTIONS,
+    backupDir: undefined,
+    generators: {},
+  }
   const protectRules: (readonly string[] | ProtectFn)[] = []
 
   for (const layer of layers) {
@@ -122,6 +135,13 @@ function isValidValue(name: string, value: unknown): boolean | undefined {
   const choices = CHOICE_OPTIONS.get(name)
   if (choices !== undefined) return typeof value === 'string' && choices.includes(value)
   switch (name) {
+    case 'generators':
+      return (
+        value !== null &&
+        typeof value === 'object' &&
+        !Array.isArray(value) &&
+        Object.values(value).every((generator: unknown) => typeof generator === 'function')
+      )
     case 'extrasHeader':
       return typeof value === 'string' || value === false
     case 'backupDir':

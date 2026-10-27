@@ -175,6 +175,55 @@ await pruneFile('.env', '.env.example', { backup: true })
 
 どちらの指示も、`# @migenv renamed-from GOOGLE_ID`、`# @migenv retired REGISTRATION` のように `@migenv` を付けて書けます。未対応または書式が正しくない指示には、行番号付きの `invalid-directive` 警告を出します。指示の引数は表示しません。
 
+### 空の値を生成する
+
+テンプレートの空のキーの直前に `@generate` を書きます。
+
+```sh
+# @generate base64url:32
+SESSION_SECRET=
+
+# @generate hex:32
+ENCRYPTION_KEY=
+
+# @generate uuid
+INSTANCE_ID=
+```
+
+`hex` と `base64url` には、乱数のバイト数を 1〜65536 で指定できます。省略すると 32 バイトです。`base64url` は末尾の `=` を付けず、`uuid` は引数なしで UUID v4 を生成します。組み込みの生成器は直後のキーだけに適用します。`@migenv generate` とも書けます。
+
+```sh
+npx migenv fill           # 並びを変えずに、既存の空のキーを埋める
+npx migenv init           # .env を作成・更新し、空の値を生成する
+npx migenv align --fill   # 既存のファイルを揃え、空の値を生成する
+npx migenv fill --dry-run # 書き込まずに、生成するキー名を確認する
+```
+
+通常の `align` では値を生成しません。空でない既存の値と保護されたキーはそのまま残し、再実行しても生成済みの値は変えません。`init` には `.dev.vars` などのファイルも指定でき、既存のファイルは `align` と同じ規則で更新します。`fill` はキーの追加やファイルの新規作成を行いません。どちらも `--backup`、`--dry-run`、`--protect` に対応し、出力にはキー名だけを表示します。
+
+```ts
+import { fillFile, migrateFile } from 'migenv/node'
+
+const result = await fillFile('.env', '.env.example', { backup: true })
+console.log(result.filled) // 生成したキー名だけ
+await migrateFile('.dev.vars', '.dev.vars.example', { create: true, fill: true })
+```
+
+文字列には、`migenv` の `fill(text, options)` を使います。指示は文字列自体から読み取ります。`align(current, template, { fill: true })` はテンプレートの指示を使い、`reorder: false` でも生成できます。文字列APIの組み込み生成器には、グローバルな Web Crypto が必要です。Node 18 ではファイルAPIを使うか、`--experimental-global-webcrypto` を有効にするか、独自の生成器を渡してください。ファイルAPIとCLIは `node:crypto` を使うため、Node 18.3 以降で動きます。
+
+独自の同期生成器は `options.generators` に渡します。生成器は `{ keys, arg }` を受け取り、指定されたキーすべての値をオブジェクトで返します。独自生成器の指示は、直後に並ぶキーを次のコメントか空行までまとめて扱います。鍵のペアなどを壊さないよう、一つでもキーがない、保護されている、重複している、値が入っているときは、グループ全体の生成を見送ります。設定ファイルの読み込みはまだ未対応なので、独自の生成器はライブラリAPIから渡してください。
+
+```ts
+import { fill, type Generator } from 'migenv'
+
+const pair: Generator = () => createKeyPair() // { PUBLIC_KEY, PRIVATE_KEY } を返す
+const result = fill('# @generate pair\nPUBLIC_KEY=\nPRIVATE_KEY=\n', {
+  generators: { pair },
+})
+```
+
+生成する値は、空でない1行の文字列にしてください。空白や `#` はクォートで囲みます。対応するクォート記号をすべて含む値や、末尾がバックスラッシュの値はエラーにします。生成器が失敗したときは、出力や元の例外を含めずに `GENERATION_FAILED` を返します。ファイルAPIは生成をすべて終えてから書き込みとバックアップを行います。
+
 ## オプション
 
 `align`、`migrateFile`、`diff` の最後の引数に渡すオプションです。すべて省略できます。
@@ -184,6 +233,8 @@ await pruneFile('.env', '.env.example', { backup: true })
 | `add` | `true` | テンプレートにあって手元にないキーを、テンプレートの位置に追加する |
 | `remove` | `false` | テンプレートにないキーを消す。`false` なら末尾にまとめて残す |
 | `rename` | `true` | `@renamed-from` に従ってキー名を変える。新しいキーがないか、値が空のときだけ行う |
+| `fill` | `false` | 並びを揃えたあと、テンプレートの `@generate` に従って空の値を生成する |
+| `generators` | `{}` | 独自の同期生成器。同名の組み込み生成器より優先する |
 | `protect` | `[]` | 絶対に変えないキー。`'*_SECRET'` のように `*` が使える。`(key, rawValue) => boolean` の関数も渡せる |
 | `reorder` | `true` | 並びとコメントをテンプレートに合わせる。`false` なら手元の並びのまま、足すキーを末尾に付ける |
 | `useTemplateDefaults` | `true` | 手元の値が空のとき、テンプレートの値を入れる |
@@ -191,16 +242,16 @@ await pruneFile('.env', '.env.example', { backup: true })
 | `newline` | `'template'` | 出力の改行コード。`'template'`、`'current'`、`'lf'`、`'crlf'` から選ぶ |
 | `duplicates` | `'last'` | キーが重複するとき、`'last'` は最後の値、`'first'` は最初の値を使う。`'last'` は dotenv と同じ。`'error'` はエラーにする |
 | `strict` | `false` | 解釈できない行をエラーにする。`false` なら行を残して警告を出す |
-| `backup` | `false` | 書き換える前に、元の内容を `<file>.bak.<日時>` に残す（`migrateFile` と `pruneFile` だけ） |
-| `backupDir` | 対象と同じ場所 | バックアップを置くディレクトリ（`migrateFile` と `pruneFile` だけ） |
+| `backup` | `false` | 書き換える前に、元の内容を `<file>.bak.<日時>` に残す（ファイルAPIだけ） |
+| `backupDir` | 対象と同じ場所 | バックアップを置くディレクトリ（ファイルAPIだけ） |
 | `create` | `false` | 対象のファイルがなければ、テンプレートから作る（`migrateFile` だけ） |
-| `dryRun` | `false` | 書き込まずに結果だけを返す（`migrateFile` と `pruneFile` だけ） |
+| `dryRun` | `false` | 書き込まずに結果だけを返す（ファイルAPIだけ） |
 
 `protect` は、ほかのすべてのオプションより優先します。対象のキーは、空でもテンプレートの値で埋めず、`remove: true` でも削除しません。保護によって見送った操作は `result.protectedSkips` と `result.warnings` に記録します。
 
 ## エラーと警告
 
-エラー時は `MigenvError` が発生します。`error.code` は `INVALID_OPTION`、`UNKNOWN_LINE`、`DUPLICATE_KEY`、`FILE_NOT_FOUND` のいずれかです。ESM 版と CommonJS 版を同時に使うと `instanceof` で判定できないことがあるため、エラーの判定には `error.code` を使ってください。
+エラー時は `MigenvError` が発生します。`error.code` は `INVALID_OPTION`、`UNKNOWN_LINE`、`DUPLICATE_KEY`、`FILE_NOT_FOUND`、`GENERATION_FAILED` のいずれかです。ESM 版と CommonJS 版を同時に使うと `instanceof` で判定できないことがあるため、エラーの判定には `error.code` を使ってください。
 
 閉じクォートのない行のように解釈できない行は、消さずにそのまま残し、`result.warnings` に行番号を出します。警告とエラーのメッセージには、キー名と行番号だけを入れ、値は入れません。
 

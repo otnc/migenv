@@ -1,4 +1,29 @@
 const messages = {
+  'command.fill': {
+    en: 'Generate empty values using @generate rules in the template.',
+    ja: 'テンプレートの @generate に従って、空の値を生成します。',
+  },
+  'command.init': {
+    en: 'Create or align env files from their templates and generate empty values.',
+    ja: 'テンプレートから env ファイルを作成・更新し、空の値を生成します。',
+  },
+  'arg.fill': {
+    en: 'Generate empty values after alignment',
+    ja: '並びを揃えたあと、空の値を生成する',
+  },
+  'report.filled': { en: 'generated', ja: '生成' },
+  'report.protectedFill': {
+    en: 'protected, generation skipped',
+    ja: 'protect されているので、値を生成しなかった',
+  },
+  'warning.generationConflict': {
+    en: '%{file}: generation group skipped because keys are missing, duplicated or already initialized (line %{line})',
+    ja: '%{file}: キーの不足・重複、または既存の値があるため、グループの生成を見送りました（%{line} 行目）',
+  },
+  'error.generationFailed': {
+    en: '%{file}: could not generate values. %{detail}',
+    ja: '%{file}: 値を生成できませんでした。%{detail}',
+  },
   'command.prune': {
     en: 'Remove keys listed by @retired in the template after confirmation.',
     ja: 'テンプレートの @retired にあるキーを、確認してから消します。',

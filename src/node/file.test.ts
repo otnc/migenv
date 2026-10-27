@@ -12,7 +12,7 @@ import {
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { migrateFile, pruneFile, writeFileAtomic } from './file'
+import { migrateFile, pruneFile, fillFile, writeFileAtomic } from './file'
 
 const onWindows = process.platform === 'win32'
 
@@ -29,6 +29,73 @@ beforeEach(async () => {
 
 afterEach(async () => {
   await rm(dir, { recursive: true, force: true })
+})
+
+describe('fillFile', () => {
+  it('fills from a template, backing up once and leaving an unchanged file untouched', async () => {
+    await writeFile(templatePath, '# @generate hex:8\nTOKEN=\n')
+    const before = '\uFEFF# local\r\nTOKEN=\r\nEXISTING=private'
+    await writeFile(envPath, before)
+    const preview = await fillFile(envPath, templatePath, { dryRun: true, backup: true })
+    expect(preview).toMatchObject({
+      written: false,
+      created: false,
+      backupPath: undefined,
+      filled: ['TOKEN'],
+    })
+    expect(await readdir(dir)).toHaveLength(2)
+    expect(await readFile(envPath, 'utf8')).toBe(before)
+    const result = await fillFile(envPath, templatePath, { backup: true })
+    expect(result.written).toBe(true)
+    expect(await readFile(result.backupPath as string, 'utf8')).toBe(before)
+    const text = await readFile(envPath, 'utf8')
+    expect(text).toMatch(/^\uFEFF# local\r\nTOKEN=[a-f0-9]{16}\r\nEXISTING=private$/)
+    const timestamp = (await stat(envPath)).mtimeMs
+    expect((await fillFile(envPath, templatePath, { backup: true })).written).toBe(false)
+    expect((await stat(envPath)).mtimeMs).toBe(timestamp)
+    expect(await readdir(dir)).toHaveLength(3)
+  })
+
+  it('never creates missing files and never writes partial generator results', async () => {
+    await expect(fillFile(envPath, templatePath, { create: true })).rejects.toMatchObject({
+      code: 'FILE_NOT_FOUND',
+    })
+    await writeFile(templatePath, '# @generate hex:8\nA=\n\n# @generate custom\nB=\n')
+    await writeFile(envPath, 'A=\nB=\n')
+    await expect(
+      fillFile(envPath, templatePath, {
+        backup: true,
+        generators: {
+          custom: () => {
+            throw new Error('private-value')
+          },
+        },
+      }),
+    ).rejects.toMatchObject({ code: 'GENERATION_FAILED' })
+    expect(await readFile(envPath, 'utf8')).toBe('A=\nB=\n')
+    expect(await readdir(dir)).toHaveLength(2)
+  })
+
+  it('creates and fills with a single migrateFile write and no backup of a missing file', async () => {
+    await writeFile(templatePath, '# @generate uuid\nTOKEN=\n')
+    const result = await migrateFile(envPath, templatePath, {
+      create: true,
+      fill: true,
+      backup: true,
+    })
+    expect(result).toMatchObject({
+      created: true,
+      written: true,
+      filled: ['TOKEN'],
+      backupPath: undefined,
+    })
+    const text = await readFile(envPath, 'utf8')
+    expect(text).toMatch(/TOKEN=[a-f0-9-]{36}\n/)
+    expect((await migrateFile(envPath, templatePath, { create: true, fill: true })).written).toBe(
+      false,
+    )
+    expect(await readFile(envPath, 'utf8')).toBe(text)
+  })
 })
 
 describe('pruneFile', () => {
