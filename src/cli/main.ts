@@ -11,7 +11,7 @@ import {
 import { type ConsolaInstance, createConsola, LogLevels } from 'consola'
 import { version } from '../../package.json'
 import type { MigenvOptions } from '../core/index'
-import { migrateFile, pruneFile } from '../node/index'
+import { migrateFile, pruneFile, fillFile } from '../node/index'
 import { commandArgs, flagValues, toMigenvOptions } from './args'
 import { createTranslator, type Translate } from './i18n'
 import { detectLocale } from './locale'
@@ -41,7 +41,7 @@ interface Pair {
   readonly template: string
 }
 
-type Mode = 'align' | 'check' | 'diff' | 'prune'
+type Mode = 'align' | 'check' | 'diff' | 'prune' | 'fill' | 'init'
 
 const EXIT_OUT_OF_DATE = 1
 const EXIT_USAGE = 2
@@ -69,7 +69,13 @@ export async function run(rawArgs: readonly string[], io: CliIo): Promise<number
 
   if (rawArgs.includes('--help') || rawArgs.includes('-h')) {
     const subCommand = rawArgs.find(
-      (arg) => arg === 'align' || arg === 'check' || arg === 'diff' || arg === 'prune',
+      (arg): arg is Mode =>
+        arg === 'align' ||
+        arg === 'check' ||
+        arg === 'diff' ||
+        arg === 'prune' ||
+        arg === 'fill' ||
+        arg === 'init',
     )
     const usage =
       subCommand === undefined
@@ -110,6 +116,8 @@ function mainCommand(context: Context): CommandDef {
       check: commandFor('check', context),
       diff: commandFor('diff', context),
       prune: commandFor('prune', context),
+      fill: commandFor('fill', context),
+      init: commandFor('init', context),
     },
     default: 'align',
   })
@@ -119,7 +127,11 @@ function commandFor(mode: Mode, context: Context): CommandDef<ArgsDef> {
   const { t } = context
   return defineCommand({
     meta: { name: mode, description: t(`command.${mode}`) },
-    args: commandArgs(t, mode === 'align' || mode === 'prune', mode === 'prune'),
+    args: commandArgs(
+      t,
+      mode !== 'check' && mode !== 'diff',
+      mode === 'prune' || mode === 'fill' ? mode : 'align',
+    ),
     run: async ({ args, rawArgs }) => {
       context.outcome.exitCode = await runMode(mode, args, rawArgs, context)
     },
@@ -132,14 +144,17 @@ async function runMode(
   rawArgs: readonly string[],
   context: Context,
 ): Promise<number> {
-  const options = toMigenvOptions(args, rawArgs)
+  const options = {
+    ...toMigenvOptions(args, rawArgs),
+    ...(mode === 'init' ? { create: true, fill: true } : {}),
+  }
   const pairs = findPairs(args, context)
   let exitCode = pairs.some((pair) => pair === undefined) ? EXIT_USAGE : 0
 
   for (const pair of pairs) {
     if (pair === undefined) continue
     const work =
-      mode === 'align' || mode === 'prune'
+      mode !== 'check' && mode !== 'diff'
         ? updatePair(pair, options, args.yes === true, context, mode)
         : previewPair(mode, pair, options, context)
     const code = await work.catch((error: unknown) => reportError(error, pair, context))
@@ -175,12 +190,16 @@ async function updatePair(
   options: MigenvOptions,
   confirmed: boolean,
   context: Context,
-  mode: 'align' | 'prune',
+  mode: 'align' | 'prune' | 'fill' | 'init',
 ): Promise<number> {
   const { io, t, logger } = context
   const file = display(pair.file, io)
-  const migrate = mode === 'prune' ? pruneFile : migrateFile
-  if ((options.remove === true || mode === 'prune') && options.dryRun !== true && !confirmed) {
+  const migrate = mode === 'prune' ? pruneFile : mode === 'fill' ? fillFile : migrateFile
+  if (
+    ((mode !== 'fill' && options.remove === true) || mode === 'prune') &&
+    options.dryRun !== true &&
+    !confirmed
+  ) {
     const preview = await migrate(pair.file, pair.template, { ...options, dryRun: true })
     if (preview.removed.length > 0) {
       const keys = preview.removed.join(', ')
@@ -269,6 +288,9 @@ function reportError(error: unknown, pair: Pair, { io, t, logger }: Context): nu
       break
     case 'INVALID_OPTION':
       logger.error(t('error.invalidOption', { detail }))
+      break
+    case 'GENERATION_FAILED':
+      logger.error(t('error.generationFailed', { file, detail }))
       break
     // Only the template is read before anything else, so ENOENT here means a missing --template.
     case 'ENOENT':

@@ -5,6 +5,9 @@ import type { Translate } from './i18n'
 /** One line per key that changed, followed by a note when only the order or comments did. Never includes values. */
 export function changeLines(result: AlignResult, t: Translate): string[] {
   const lines = [
+    ...result.filled.map(
+      (key) => `  ${colors.cyan('~')} ${key}   ${colors.dim(`(${t('report.filled')})`)}`,
+    ),
     ...result.renamed.map(
       ({ from, to }) =>
         `  ${colors.cyan('~')} ${from} → ${to}   ${colors.dim(`(${t('report.renamed')})`)}`,
@@ -21,7 +24,7 @@ export function changeLines(result: AlignResult, t: Translate): string[] {
     ...result.protectedSkips.map(
       ({ key, action }) =>
         `  ${colors.magenta('!')} ${key}   ${colors.dim(
-          `(${t(action === 'default' ? 'report.protectedDefault' : action === 'rename' ? 'report.protectedRename' : 'report.protectedRemove')})`,
+          `(${t(action === 'default' ? 'report.protectedDefault' : action === 'rename' ? 'report.protectedRename' : action === 'fill' ? 'report.protectedFill' : 'report.protectedRemove')})`,
         )}`,
     ),
   ]
@@ -29,6 +32,7 @@ export function changeLines(result: AlignResult, t: Translate): string[] {
     result.changed &&
     result.added.length === 0 &&
     result.removed.length === 0 &&
+    result.filled.length === 0 &&
     result.renamed.length === 0
   if (onlyLayout) lines.push(`  ${colors.cyan('~')} ${colors.dim(t('report.reordered'))}`)
   return lines
@@ -43,6 +47,8 @@ export function warningMessages(
   return warnings.flatMap((warning) => {
     const line = warning.line ?? 0
     switch (warning.code) {
+      case 'generation-conflict':
+        return [t('warning.generationConflict', { file: template, line })]
       case 'invalid-directive':
         return [t('warning.invalidDirective', { file: template, line })]
       case 'rename-conflict':
