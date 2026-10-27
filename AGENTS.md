@@ -1,6 +1,6 @@
 # AGENTS.md
 
-migenv is an npm package that brings `.env` and `.dev.vars` files in line with their templates (`.env.example` and the like) without changing any existing non-empty value. It has two library entry points, `migenv` (`src/core`, string-only) and `migenv/node` (`src/node`, file system), and a `migenv` command (`src/cli`).
+migenv is an npm package that brings `.env` and `.dev.vars` files in line with their templates (`.env.example` and the like) without changing any existing non-empty value. Only `setValues` explicitly overwrites requested values, while still respecting `protect`. It has two library entry points, `migenv` (`src/core`, string-only) and `migenv/node` (`src/node`, file system), and a `migenv` command (`src/cli`).
 
 [CONTRIBUTING.md](CONTRIBUTING.md) is the full guide. Read its "How the code is organized" and "Rules the code keeps" sections before changing `src/`.
 

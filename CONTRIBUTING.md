@@ -58,7 +58,7 @@ The package has two library entry points and a command, and every file you add m
 
 These are the promises migenv makes to its users. A change that breaks one of them is a bug, even if every test passes.
 
-- **Non-empty values never change.** `parse` does not decode values; it keeps each line's text as `raw` so that `stringify(parse(text)) === text` holds for any input, and `align` copies current lines as they are.
+- **Alignment and generation never change non-empty values.** `parse` does not decode values; it keeps each line's text as `raw` so that `stringify(parse(text)) === text` holds for any input, and `align` copies current lines as they are. Only `setValues` explicitly overwrites requested values; it still respects `protect` and preserves unrelated entries.
 - **`align` is idempotent.** Running it on its own output changes nothing.
 - **Lines that cannot be parsed are kept**, never dropped. They become `unknown` nodes and a warning.
 - **Values never appear in messages.** Warnings and errors name keys and line numbers only, because env files hold secrets.

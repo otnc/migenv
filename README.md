@@ -9,7 +9,7 @@
 
 Migrate `.env` and `.dev.vars` files to match their `.example` templates without changing existing values.
 
-migenv reorders your env file to follow its template and adds the keys it is missing. **A non-empty value is never changed, not even by one character.**
+migenv reorders your env file to follow its template and adds the keys it is missing. **Alignment and generation never change a non-empty value, not even by one character.** To explicitly overwrite selected values, use `setValues`.
 
 ## What it does
 
@@ -125,6 +125,30 @@ const result = align(currentText, templateText, { remove: true })
 result.text // the aligned content
 result.changed // true when it differs from currentText
 ```
+
+### Set values explicitly
+
+`setValues` overwrites selected keys, including non-empty values. Pass a `ReadonlyMap<string, string>` containing raw env syntax after `=`, including any quotes and inline comments. Values are not decoded or automatically escaped, so `new Map([['LABEL', '"hello # world"']])` writes `LABEL="hello # world"`.
+
+```ts
+import { setValues } from 'migenv'
+
+const result = setValues(currentText, new Map([
+  ['ORIGIN', 'https://example.com'],
+  ['LABEL', '"hello # world"'],
+]), { protect: ['SESSION_SECRET'] })
+
+result.text    // updated env content
+result.updated // existing keys whose raw values changed
+result.added   // missing keys added in map order
+result.skipped // protected keys, or missing keys with add: false
+```
+
+Unrelated lines, comments, BOM, mixed line endings and the existing final-newline style stay intact. Updated entries keep their key prefix, including `export` and spacing before `=`; their entire raw value is replaced. Missing keys are appended using the current file's line ending (LF for an empty file), or inserted before the first unparseable line. Set `add: false` to update existing keys only.
+
+All occurrences of a requested key are updated together so a later duplicate cannot hide an update. `duplicates: 'first'` and `'last'` both keep and update every occurrence; `'error'` rejects duplicate keys. If `protect` matches any occurrence, the entire key is skipped. Protection also prevents adding a missing key. `strict: true` rejects unparseable lines; otherwise they are kept with warnings. Other alignment and file options are ignored.
+
+Quoted multiline values are supported. Invalid keys, unclosed quotes and raw values that introduce extra entries throw `INVALID_VALUE`, with no values in the message. If combining valid entries would change how neighboring quoted values read, the original text is returned with an `ambiguous-quote` warning and every requested key in `skipped`. Reapplying the same values changes nothing. For file or remote operations, pass the returned text to your existing write operation; `writeFileAtomic` is available from `migenv/node`.
 
 ### Check without rewriting
 
@@ -253,7 +277,7 @@ Generated values must be non-empty single-line strings. Spaces and comment chara
 
 ## Errors and warnings
 
-Errors are `MigenvError`s whose `error.code` is one of `INVALID_OPTION`, `UNKNOWN_LINE`, `DUPLICATE_KEY`, `FILE_NOT_FOUND` and `GENERATION_FAILED`. Check `error.code` rather than `instanceof`, which fails when both the ESM and the CommonJS build are loaded.
+Errors are `MigenvError`s whose `error.code` is one of `INVALID_OPTION`, `INVALID_VALUE`, `UNKNOWN_LINE`, `DUPLICATE_KEY`, `FILE_NOT_FOUND` and `GENERATION_FAILED`. Check `error.code` rather than `instanceof`, which fails when both the ESM and the CommonJS build are loaded.
 
 A line that cannot be parsed, such as one with an unclosed quote, is kept as it is and reported by line number in `result.warnings`. Warnings and error messages name keys and line numbers only, never values.
 
