@@ -177,6 +177,55 @@ await pruneFile('.env', '.env.example', { backup: true })
 
 Both directives also accept the `@migenv` prefix, as in `# @migenv renamed-from GOOGLE_ID` and `# @migenv retired REGISTRATION`. Malformed or unsupported directives produce `invalid-directive` warnings with line numbers; their arguments are never shown.
 
+### Generate empty values
+
+Place `@generate` immediately above an empty key in the template:
+
+```sh
+# @generate base64url:32
+SESSION_SECRET=
+
+# @generate hex:32
+ENCRYPTION_KEY=
+
+# @generate uuid
+INSTANCE_ID=
+```
+
+`hex` and unpadded `base64url` accept a byte length from 1 to 65536 (default 32). `uuid` produces a UUID v4 and takes no argument. Built-ins apply only to the next key. `@migenv generate` also works.
+
+```sh
+npx migenv fill           # fill existing empty keys, preserving layout
+npx migenv init           # create or align .env, then fill empty keys
+npx migenv align --fill   # align and fill an existing file
+npx migenv fill --dry-run # preview key names without writing
+```
+
+Ordinary `align` never generates values. Non-empty values and protected keys stay intact, including on repeated runs. `init` accepts paths such as `.dev.vars` and updates existing files using the same rules as `align`. `fill` never adds keys or creates a missing file. Both commands support `--backup`, `--dry-run` and `--protect`. Output contains key names only.
+
+```ts
+import { fillFile, migrateFile } from 'migenv/node'
+
+const result = await fillFile('.env', '.env.example', { backup: true })
+console.log(result.filled) // generated key names only
+await migrateFile('.dev.vars', '.dev.vars.example', { create: true, fill: true })
+```
+
+For strings, `fill(text, options)` from `migenv` reads directives from the text itself. `align(current, template, { fill: true })` uses the template's directives, including with `reorder: false`. Built-in string generators require global Web Crypto. On Node 18, use the file APIs, enable `--experimental-global-webcrypto`, or provide custom generators. File APIs and the CLI use `node:crypto` and support Node 18.3 and later.
+
+Custom synchronous generators go in `options.generators`. They receive `{ keys, arg }` and return a record with exactly those keys and their values. A custom directive applies to consecutive entries until the next comment or blank line. To preserve paired secrets, the entire group is skipped if a key is missing, protected, duplicated or already has a value. Configuration-file loading is not implemented yet; pass custom generators through the library API.
+
+```ts
+import { fill, type Generator } from 'migenv'
+
+const pair: Generator = () => createKeyPair() // returns { PUBLIC_KEY, PRIVATE_KEY }
+const result = fill('# @generate pair\nPUBLIC_KEY=\nPRIVATE_KEY=\n', {
+  generators: { pair },
+})
+```
+
+Generated values must be non-empty single-line strings. Spaces and comment characters are quoted; values containing every supported quote delimiter or ending in a backslash are rejected. Generation errors use `GENERATION_FAILED`, omitting generated values and original exceptions. Generation completes before any file write or backup.
+
 ## Options
 
 `align`, `migrateFile` and `diff` take the same options object as their last argument. Every option is optional.
@@ -186,6 +235,8 @@ Both directives also accept the `@migenv` prefix, as in `# @migenv renamed-from 
 | `add` | `true` | Add keys that the template has and your file lacks, at the template's position |
 | `remove` | `false` | Delete keys that the template does not have. When `false`, they are kept at the end |
 | `rename` | `true` | Move values from keys named by `@renamed-from` when the destination is missing or empty |
+| `fill` | `false` | Generate empty values after alignment using the template's `@generate` directives |
+| `generators` | `{}` | Custom synchronous generators, overriding built-ins with the same name |
 | `protect` | `[]` | Keys that are never changed. `*` matches anything, as in `'*_SECRET'`. A `(key, rawValue) => boolean` function also works |
 | `reorder` | `true` | Follow the template's order and comments. When `false`, keep your order and append the added keys |
 | `useTemplateDefaults` | `true` | Use the template's value when yours is empty |
@@ -193,16 +244,16 @@ Both directives also accept the `@migenv` prefix, as in `# @migenv renamed-from 
 | `newline` | `'template'` | Line ending of the output: `'template'`, `'current'`, `'lf'` or `'crlf'` |
 | `duplicates` | `'last'` | Which value wins when a key appears twice. `'last'` matches dotenv, and `'error'` throws |
 | `strict` | `false` | Throw on lines that cannot be parsed. When `false`, they are kept with a warning |
-| `backup` | `false` | Save the original to `<file>.bak.<timestamp>` before rewriting (`migrateFile` and `pruneFile` only) |
-| `backupDir` | the file's directory | Where backups go (`migrateFile` and `pruneFile` only) |
+| `backup` | `false` | Save the original to `<file>.bak.<timestamp>` before rewriting (file APIs only) |
+| `backupDir` | the file's directory | Where backups go (file APIs only) |
 | `create` | `false` | Create the file from the template when it does not exist (`migrateFile` only) |
-| `dryRun` | `false` | Return the result without writing anything (`migrateFile` and `pruneFile` only) |
+| `dryRun` | `false` | Return the result without writing anything (file APIs only) |
 
 `protect` wins over every other option: a protected key is not filled from the template even when empty, and not deleted even with `remove: true`. Each skipped action is listed in `result.protectedSkips` and `result.warnings`.
 
 ## Errors and warnings
 
-Errors are `MigenvError`s whose `error.code` is one of `INVALID_OPTION`, `UNKNOWN_LINE`, `DUPLICATE_KEY` and `FILE_NOT_FOUND`. Check `error.code` rather than `instanceof`, which fails when both the ESM and the CommonJS build are loaded.
+Errors are `MigenvError`s whose `error.code` is one of `INVALID_OPTION`, `UNKNOWN_LINE`, `DUPLICATE_KEY`, `FILE_NOT_FOUND` and `GENERATION_FAILED`. Check `error.code` rather than `instanceof`, which fails when both the ESM and the CommonJS build are loaded.
 
 A line that cannot be parsed, such as one with an unclosed quote, is kept as it is and reported by line number in `result.warnings`. Warnings and error messages name keys and line numbers only, never values.
 
