@@ -1,5 +1,6 @@
-/** `INVALID_OPTION` can come from any function that takes options, `UNKNOWN_LINE` and `DUPLICATE_KEY` from `align` and `migrateFile`, and `FILE_NOT_FOUND` from `migrateFile`. */
-export type MigenvErrorCode = 'UNKNOWN_LINE' | 'DUPLICATE_KEY' | 'INVALID_OPTION' | 'FILE_NOT_FOUND'
+/** Option validation, parsing, missing files and generation failures. Error messages never include env values or custom generator errors. */
+export type MigenvErrorCode =
+  'UNKNOWN_LINE' | 'DUPLICATE_KEY' | 'INVALID_OPTION' | 'FILE_NOT_FOUND' | 'GENERATION_FAILED'
 
 /**
  * The error migenv throws. Messages name keys and line numbers but never values.

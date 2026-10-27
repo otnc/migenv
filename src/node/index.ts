@@ -1,1 +1,1 @@
-export { type MigrateFileResult, migrateFile, pruneFile, writeFileAtomic } from './file'
+export { type MigrateFileResult, migrateFile, pruneFile, fillFile, writeFileAtomic } from './file'
