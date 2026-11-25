@@ -4,6 +4,7 @@ import {
   type ArgsDef,
   type CommandDef,
   defineCommand,
+  parseArgs,
   type ParsedArgs,
   renderUsage,
   runCommand,
@@ -41,7 +42,8 @@ interface Pair {
   readonly template: string
 }
 
-type Mode = 'align' | 'check' | 'diff' | 'prune' | 'fill' | 'init'
+const MODES = ['align', 'check', 'diff', 'prune', 'fill', 'init'] as const
+type Mode = (typeof MODES)[number]
 
 const EXIT_OUT_OF_DATE = 1
 const EXIT_USAGE = 2
@@ -68,15 +70,7 @@ export async function run(rawArgs: readonly string[], io: CliIo): Promise<number
   const main = mainCommand(context)
 
   if (rawArgs.includes('--help') || rawArgs.includes('-h')) {
-    const subCommand = rawArgs.find(
-      (arg): arg is Mode =>
-        arg === 'align' ||
-        arg === 'check' ||
-        arg === 'diff' ||
-        arg === 'prune' ||
-        arg === 'fill' ||
-        arg === 'init',
-    )
+    const subCommand = rawArgs.find(isMode)
     const usage =
       subCommand === undefined
         ? await renderUsage(main)
@@ -90,7 +84,7 @@ export async function run(rawArgs: readonly string[], io: CliIo): Promise<number
   }
 
   try {
-    await runCommand(main, { rawArgs: [...rawArgs] })
+    await runCommand(main, { rawArgs: withCommandName(rawArgs, t) })
     return context.outcome.exitCode
   } catch (error) {
     // citty throws CLIError for an unknown command or a value outside an enum's choices.
@@ -102,15 +96,31 @@ export async function run(rawArgs: readonly string[], io: CliIo): Promise<number
   }
 }
 
-function mainCommand(context: Context): CommandDef {
-  const { t } = context
-  // The default command reads the same flags as `align`, so citty can tell flag values from a command name.
-  const flags = Object.fromEntries(
+function isMode(arg: string): arg is Mode {
+  return (MODES as readonly string[]).includes(arg)
+}
+
+/** The default command reads the same flags as `align`, so citty can tell flag values from a command name. */
+function defaultCommandFlags(t: Translate): ArgsDef {
+  return Object.fromEntries(
     Object.entries(commandArgs(t, true)).filter(([name]) => name !== 'files'),
   )
+}
+
+/**
+ * citty runs the default command only when no positional argument is given and reads the first one as a command name,
+ * so `migenv .env` needs `align` put in front. A file named like a command still needs `migenv align check`.
+ */
+function withCommandName(rawArgs: readonly string[], t: Translate): string[] {
+  const first = parseArgs([...rawArgs], defaultCommandFlags(t))._[0]
+  return first === undefined || isMode(first) ? [...rawArgs] : ['align', ...rawArgs]
+}
+
+function mainCommand(context: Context): CommandDef {
+  const { t } = context
   return defineCommand({
     meta: { name: 'migenv', version, description: t('command.main') },
-    args: flags,
+    args: defaultCommandFlags(t),
     subCommands: {
       align: commandFor('align', context),
       check: commandFor('check', context),
