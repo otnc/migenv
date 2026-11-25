@@ -80,7 +80,7 @@ npx migenv prune --backup # @retired のキーを、確認してから消す
 npx migenv align .env.local --remove --protect SESSION_SECRET --backup
 ```
 
-テンプレートには `<ファイル>.example` を使います。見つからなければファイル名の最後の拡張子を外して探すので、`.env.local` には `.env.example` を使えます。別のテンプレートを指定するには `-t, --template <パス>` を渡します。パスの基準は、migenv を実行したディレクトリです。
+テンプレートには `<ファイル>.example` を使います。見つからなければファイル名の最後の拡張子を外して探すので、`.env.local` には `.env.example` を使えます。別のテンプレートを指定するには `-t, --template <パス>` を渡します。パスの基準は、migenv を実行したディレクトリです。コマンドを付けずに `npx migenv .env.local --create` のようにファイルを渡すと align します。コマンドと同じ名前のファイルは `npx migenv align check` のように align を明示してください。
 
 CLI のフラグは、下のオプションに対応しています。コマンドごとの一覧は `npx migenv <コマンド> --help` で確認できます。`-p, --protect <キー>` は、カンマ区切りでも繰り返しても指定できます。`--remove` と `prune` は削除前に確認するので、CI では `--yes` を付けてください。`check` と `diff` は何も書き換えず、どのコマンドも値を表示しません。
 

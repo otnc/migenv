@@ -82,7 +82,7 @@ npx migenv prune --backup # remove @retired keys after confirmation
 npx migenv align .env.local --remove --protect SESSION_SECRET --backup
 ```
 
-Each file uses `<file>.example` as its template. If that is missing, migenv drops the file's last suffix and tries again: `.env.local` falls back to `.env.example`. Choose a template with `-t, --template <path>`. Paths are relative to the directory you run migenv in.
+Each file uses `<file>.example` as its template. If that is missing, migenv drops the file's last suffix and tries again: `.env.local` falls back to `.env.example`. Choose a template with `-t, --template <path>`. Paths are relative to the directory you run migenv in. Files given without a command, as in `npx migenv .env.local --create`, are aligned; a file named like a command needs it spelled out, as in `npx migenv align check`.
 
 CLI flags correspond to the options below. Use `npx migenv <command> --help` for each command's flags. `-p, --protect <keys>` accepts comma-separated keys or repeated flags. `--remove` and `prune` ask before deleting keys; pass `--yes` in CI. `check` and `diff` never write, and no command prints values.
 
