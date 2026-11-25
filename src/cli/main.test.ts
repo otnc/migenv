@@ -167,6 +167,16 @@ describe('migenv align', () => {
     expect(await readEnv('.env.local')).toBe('OTHER=\n')
   })
 
+  it('aligns files given without a command name, like the explicit align command', async () => {
+    await rm(join(dir, '.env'))
+    expect((await cli(['.env', '--create'])).code).toBe(0)
+    expect(await readEnv()).toBe('APP_URL=http://localhost\nPORT=3000\nSECRET=\n')
+
+    expect((await cli(['-t', '.env.example', '--create', '.env.local', '.env.dev'])).code).toBe(0)
+    expect(await readEnv('.env.local')).toBe('APP_URL=http://localhost\nPORT=3000\nSECRET=\n')
+    expect(await readEnv('.env.dev')).toBe('APP_URL=http://localhost\nPORT=3000\nSECRET=\n')
+  })
+
   it('exits with 2 when no template exists or a flag value is not allowed', async () => {
     expect((await cli(['align', 'missing.env'])).code).toBe(2)
     expect((await cli(['align', '--newline', 'cr'])).code).toBe(2)
