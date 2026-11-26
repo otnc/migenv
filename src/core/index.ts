@@ -8,6 +8,7 @@ export {
 export { type DiffReport, diff } from './diff'
 export { parseDirectives } from './directives'
 export type { DirectiveSet, GenerateDirective } from './directives'
+export { type ExtractResult, extract } from './extract'
 export { fill } from './fill'
 export type { FillResult } from './fill'
 export { generators } from './generators'

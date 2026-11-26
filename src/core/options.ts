@@ -1,7 +1,7 @@
 import { MigenvError } from './errors'
 import type { Generator } from './generators'
 
-/** Decides protection from the key and its undecoded value, e.g. `(key, raw) => raw.startsWith('vault:')`. */
+/** Decides from a key and its undecoded value, e.g. `(key, raw) => raw.startsWith('vault:')`. Used by `protect` and `keepValues`. */
 export type ProtectFn = (key: string, rawValue: string) => boolean
 
 /** Options shared by every migenv function. Each function ignores the ones it does not use. */
@@ -21,6 +21,16 @@ export interface MigenvOptions {
    * Patterns from every layer passed to `resolveOptions` are combined, not overridden.
    */
   readonly protect?: readonly string[] | ProtectFn | undefined
+  /**
+   * `extract` only: keys whose values are copied into the template. Every other value is left empty. `*` matches any characters (`'PORT'`, `'NEXT_PUBLIC_*'`).
+   * Patterns from every layer passed to `resolveOptions` are combined, not overridden.
+   */
+  readonly keepValues?: readonly string[] | ProtectFn | undefined
+  /**
+   * `extract` only: what to do with commented-out entries such as `# API_KEY=sk-...`, which often hold real values.
+   * `'remove'` leaves them out, `'empty'` writes them as `# API_KEY=` and `'keep'` copies the line as it is. Default `'remove'`.
+   */
+  readonly commentedEntries?: 'remove' | 'empty' | 'keep' | undefined
   /** Follow the template's order and comments. When `false`, keep the current order and append added keys. Default `true`. */
   readonly reorder?: boolean | undefined
   /** Use the template's value when the current value is empty. Default `true`. */
@@ -51,6 +61,8 @@ export interface ResolvedOptions {
   readonly add: boolean
   readonly remove: boolean
   readonly isProtected: ProtectFn
+  readonly isValueKept: ProtectFn
+  readonly commentedEntries: 'remove' | 'empty' | 'keep'
   readonly reorder: boolean
   readonly useTemplateDefaults: boolean
   readonly extrasHeader: string | false
@@ -64,30 +76,33 @@ export interface ResolvedOptions {
 }
 
 /** The value of each option when no layer sets it. */
-const DEFAULT_OPTIONS: Readonly<Omit<ResolvedOptions, 'isProtected' | 'backupDir' | 'generators'>> =
-  {
-    fill: false,
-    rename: true,
-    add: true,
-    remove: false,
-    reorder: true,
-    useTemplateDefaults: true,
-    extrasHeader: '# ---- Not in template (review manually) ----',
-    newline: 'template',
-    duplicates: 'last',
-    strict: false,
-    backup: false,
-    create: false,
-    dryRun: false,
-  }
+const DEFAULT_OPTIONS: Readonly<
+  Omit<ResolvedOptions, 'isProtected' | 'isValueKept' | 'backupDir' | 'generators'>
+> = {
+  fill: false,
+  rename: true,
+  add: true,
+  remove: false,
+  commentedEntries: 'remove',
+  reorder: true,
+  useTemplateDefaults: true,
+  extrasHeader: '# ---- Not in template (review manually) ----',
+  newline: 'template',
+  duplicates: 'last',
+  strict: false,
+  backup: false,
+  create: false,
+  dryRun: false,
+}
 
 const CHOICE_OPTIONS: ReadonlyMap<string, readonly string[]> = new Map([
   ['newline', ['template', 'current', 'lf', 'crlf']],
   ['duplicates', ['last', 'first', 'error']],
+  ['commentedEntries', ['remove', 'empty', 'keep']],
 ])
 
 /**
- * Fills in defaults. Later layers override earlier ones, `undefined` counts as not set, and `protect` is the union of every layer.
+ * Fills in defaults. Later layers override earlier ones, `undefined` counts as not set, and `protect` and `keepValues` are each the union of every layer.
  * @throws {MigenvError} `INVALID_OPTION` for an unknown option name or a value of the wrong type.
  * @example
  * const options = resolveOptions(configOptions, { remove: true, protect: ['*_SECRET'] })
@@ -100,6 +115,7 @@ export function resolveOptions(...layers: readonly (MigenvOptions | undefined)[]
     generators: {},
   }
   const protectRules: (readonly string[] | ProtectFn)[] = []
+  const keepValueRules: (readonly string[] | ProtectFn)[] = []
 
   for (const layer of layers) {
     if (layer === undefined) continue
@@ -108,6 +124,8 @@ export function resolveOptions(...layers: readonly (MigenvOptions | undefined)[]
       validateOption(name, value)
       if (name === 'protect') {
         protectRules.push(value as readonly string[] | ProtectFn)
+      } else if (name === 'keepValues') {
+        keepValueRules.push(value as readonly string[] | ProtectFn)
       } else {
         merged[name] = value
       }
@@ -115,8 +133,9 @@ export function resolveOptions(...layers: readonly (MigenvOptions | undefined)[]
   }
 
   return {
-    ...(merged as Omit<ResolvedOptions, 'isProtected'>),
-    isProtected: compileProtect(protectRules),
+    ...(merged as Omit<ResolvedOptions, 'isProtected' | 'isValueKept'>),
+    isProtected: compileKeyRules(protectRules),
+    isValueKept: compileKeyRules(keepValueRules),
   }
 }
 
@@ -147,6 +166,7 @@ function isValidValue(name: string, value: unknown): boolean | undefined {
     case 'backupDir':
       return typeof value === 'string'
     case 'protect':
+    case 'keepValues':
       return (
         typeof value === 'function' ||
         (Array.isArray(value) && value.every((item) => typeof item === 'string'))
@@ -160,7 +180,7 @@ function isValidValue(name: string, value: unknown): boolean | undefined {
   }
 }
 
-function compileProtect(rules: readonly (readonly string[] | ProtectFn)[]): ProtectFn {
+function compileKeyRules(rules: readonly (readonly string[] | ProtectFn)[]): ProtectFn {
   const patterns: RegExp[] = []
   const predicates: ProtectFn[] = []
   for (const rule of rules) {

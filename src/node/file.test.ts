@@ -12,7 +12,7 @@ import {
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { migrateFile, pruneFile, fillFile, writeFileAtomic } from './file'
+import { extractFile, migrateFile, pruneFile, fillFile, writeFileAtomic } from './file'
 
 const onWindows = process.platform === 'win32'
 
@@ -29,6 +29,38 @@ beforeEach(async () => {
 
 afterEach(async () => {
   await rm(dir, { recursive: true, force: true })
+})
+
+describe('extractFile', () => {
+  it('creates a missing template without changing the env file', async () => {
+    await rm(templatePath)
+    const env = '# OLD=sk-old\nA=secret\nPORT=3000\n'
+    await writeFile(envPath, env)
+    const preview = await extractFile(envPath, templatePath, { dryRun: true })
+    expect(preview).toMatchObject({ written: false, created: false, changed: true })
+    await expect(stat(templatePath)).rejects.toThrow()
+    const result = await extractFile(envPath, templatePath, { keepValues: ['PORT'] })
+    expect(result).toMatchObject({ written: true, created: true, droppedCommentedEntries: ['OLD'] })
+    expect(await readFile(templatePath, 'utf8')).toBe('A=\nPORT=3000\n')
+    expect(await readFile(envPath, 'utf8')).toBe(env)
+    if (!onWindows) expect((await stat(templatePath)).mode & 0o777).toBe(0o644)
+  })
+
+  it('backs up and updates an existing template, and leaves an unchanged one untouched', async () => {
+    await writeFile(envPath, 'A=1\nB=2\nC=3\n')
+    const result = await extractFile(envPath, templatePath, { backup: true })
+    expect(result).toMatchObject({ written: true, created: false, added: ['C'] })
+    expect(await readFile(templatePath, 'utf8')).toBe('A=\nB=default\nC=\n')
+    expect(await readFile(result.backupPath as string, 'utf8')).toBe('A=\nB=default\n')
+    const again = await extractFile(envPath, templatePath, { backup: true })
+    expect(again).toMatchObject({ written: false, changed: false, backupPath: undefined })
+  })
+
+  it('throws FILE_NOT_FOUND when the env file is missing', async () => {
+    await expect(extractFile(envPath, templatePath)).rejects.toMatchObject({
+      code: 'FILE_NOT_FOUND',
+    })
+  })
 })
 
 describe('fillFile', () => {

@@ -12,12 +12,12 @@ import {
 import { type ConsolaInstance, createConsola, LogLevels } from 'consola'
 import { version } from '../../package.json'
 import type { MigenvOptions } from '../core/index'
-import { migrateFile, pruneFile, fillFile } from '../node/index'
+import { extractFile, migrateFile, pruneFile, fillFile } from '../node/index'
 import { commandArgs, flagValues, toMigenvOptions } from './args'
 import { createTranslator, type Translate } from './i18n'
 import { detectLocale } from './locale'
 import { templateCandidates } from './pairs'
-import { changeLines, warningMessages } from './report'
+import { changeLines, extractLines, warningMessages } from './report'
 
 /** Everything the CLI takes from the process, so tests can run it in a temporary directory. */
 export interface CliIo {
@@ -42,7 +42,7 @@ interface Pair {
   readonly template: string
 }
 
-const MODES = ['align', 'check', 'diff', 'prune', 'fill', 'init'] as const
+const MODES = ['align', 'check', 'diff', 'prune', 'fill', 'init', 'extract'] as const
 type Mode = (typeof MODES)[number]
 
 const EXIT_OUT_OF_DATE = 1
@@ -128,6 +128,7 @@ function mainCommand(context: Context): CommandDef {
       prune: commandFor('prune', context),
       fill: commandFor('fill', context),
       init: commandFor('init', context),
+      extract: commandFor('extract', context),
     },
     default: 'align',
   })
@@ -140,7 +141,7 @@ function commandFor(mode: Mode, context: Context): CommandDef<ArgsDef> {
     args: commandArgs(
       t,
       mode !== 'check' && mode !== 'diff',
-      mode === 'prune' || mode === 'fill' ? mode : 'align',
+      mode === 'prune' || mode === 'fill' || mode === 'extract' ? mode : 'align',
     ),
     run: async ({ args, rawArgs }) => {
       context.outcome.exitCode = await runMode(mode, args, rawArgs, context)
@@ -157,6 +158,16 @@ async function runMode(
   const options = {
     ...toMigenvOptions(args, rawArgs),
     ...(mode === 'init' ? { create: true, fill: true } : {}),
+  }
+  if (mode === 'extract') {
+    let exitCode = 0
+    for (const pair of findExtractPairs(args, context.io)) {
+      const code = await extractPair(pair, options, args.yes === true, context).catch(
+        (error: unknown) => reportError(error, pair, context),
+      )
+      exitCode = Math.max(exitCode, code)
+    }
+    return exitCode
   }
   const pairs = findPairs(args, context)
   let exitCode = pairs.some((pair) => pair === undefined) ? EXIT_USAGE : 0
@@ -195,6 +206,89 @@ function findPairs(args: ParsedArgs, { io, t, logger }: Context): (Pair | undefi
   })
 }
 
+/** For `extract`, the template is the output, so a missing one is fine: the most specific candidate is created. */
+function findExtractPairs(args: ParsedArgs, io: CliIo): Pair[] {
+  const files = args._.length > 0 ? args._ : ['.env']
+  const template = typeof args.template === 'string' ? resolve(io.cwd, args.template) : undefined
+  return files.map((name) => {
+    const file = resolve(io.cwd, name)
+    const candidates = templateCandidates(file)
+    return {
+      file,
+      template:
+        template ??
+        candidates.find((candidate) => existsSync(candidate)) ??
+        (candidates[0] as string),
+    }
+  })
+}
+
+async function extractPair(
+  pair: Pair,
+  options: MigenvOptions,
+  confirmed: boolean,
+  context: Context,
+): Promise<number> {
+  const { io, t, logger } = context
+  const names = { file: display(pair.file, io), template: display(pair.template, io) }
+  if (!existsSync(pair.file)) {
+    logger.error(t('check.missing', { file: names.file }))
+    return EXIT_USAGE
+  }
+  if (options.remove === true && options.dryRun !== true && !confirmed) {
+    const preview = await extractFile(pair.file, pair.template, { ...options, dryRun: true })
+    const stopWith = await confirmRemoval(names.template, preview.removed, context)
+    if (stopWith !== undefined) return stopWith
+  }
+
+  const result = await extractFile(pair.file, pair.template, options)
+  const lines = extractLines(result, t)
+  if (lines.length > 0) logger.log([`${names.template} ← ${names.file}`, ...lines].join('\n'))
+  for (const warning of result.warnings) {
+    if (warning.code !== 'unknown-line' || warning.source !== 'current') continue
+    logger.warn(t('warning.unknownLine.extract', { file: names.file, line: warning.line ?? 0 }))
+  }
+  const otherWarnings = result.warnings.filter(
+    (warning) => warning.code !== 'unknown-line' || warning.source !== 'current',
+  )
+  // Every other warning is about the template, which `extract` keeps as it is.
+  for (const message of warningMessages(
+    otherWarnings.map((warning) => ({ ...warning, source: 'current' as const })),
+    { file: names.template, template: names.template },
+    t,
+  ))
+    logger.warn(message)
+  if (result.backupPath !== undefined) {
+    logger.log(`  ${t('report.backup', { path: display(result.backupPath, io) })}`)
+  }
+  if (result.created) logger.success(t('align.created', { file: names.template }))
+  else if (result.written) logger.success(t('align.updated', { file: names.template }))
+  else if (result.changed) logger.info(t('align.wouldUpdate', { file: names.template }))
+  else logger.success(t('align.upToDate', { file: names.template }))
+  return 0
+}
+
+/** Asks before keys are deleted from `file`. Returns the exit code to stop with, or `undefined` to go ahead. */
+async function confirmRemoval(
+  file: string,
+  removed: readonly string[],
+  { io, t, logger }: Context,
+): Promise<number | undefined> {
+  if (removed.length === 0) return undefined
+  const keys = removed.join(', ')
+  if (!io.interactive) {
+    logger.error(t('remove.needsYes', { file, keys }))
+    return EXIT_USAGE
+  }
+  const answer = await logger.prompt(t('remove.confirm', { file, keys }), {
+    type: 'confirm',
+    initial: false,
+  })
+  if (answer === true) return undefined
+  logger.info(t('remove.skipped', { file }))
+  return 0
+}
+
 async function updatePair(
   pair: Pair,
   options: MigenvOptions,
@@ -211,21 +305,8 @@ async function updatePair(
     !confirmed
   ) {
     const preview = await migrate(pair.file, pair.template, { ...options, dryRun: true })
-    if (preview.removed.length > 0) {
-      const keys = preview.removed.join(', ')
-      if (!io.interactive) {
-        logger.error(t('remove.needsYes', { file, keys }))
-        return EXIT_USAGE
-      }
-      const answer = await logger.prompt(t('remove.confirm', { file, keys }), {
-        type: 'confirm',
-        initial: false,
-      })
-      if (answer !== true) {
-        logger.info(t('remove.skipped', { file }))
-        return 0
-      }
-    }
+    const stopWith = await confirmRemoval(file, preview.removed, context)
+    if (stopWith !== undefined) return stopWith
   }
 
   const result = await migrate(pair.file, pair.template, options)

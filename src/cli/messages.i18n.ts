@@ -24,6 +24,31 @@ const messages = {
     en: '%{file}: could not generate values. %{detail}',
     ja: '%{file}: 値を生成できませんでした。%{detail}',
   },
+  'command.extract': {
+    en: 'Create or update each template (<file>.example) from its env file. Values are left empty, and commented-out entries are left out.',
+    ja: 'env ファイルからテンプレート (<ファイル>.example) を作成・更新します。値は空にし、コメントアウトされた行は入れません。',
+  },
+  'arg.keepValues': {
+    en: 'extract: keys whose values are copied into the template, comma-separated or repeated. * matches anything',
+    ja: 'extract: 値をテンプレートにコピーするキー。カンマ区切りか、繰り返して指定する。* は何にでも一致する',
+  },
+  'arg.commentedEntries': {
+    en: 'extract: commented-out entries such as "# KEY=value" are left out (remove), written without their value (empty) or copied as they are (keep)',
+    ja: 'extract: "# KEY=value" のようにコメントアウトされた行を、入れない (remove)、値を空にして入れる (empty)、そのまま入れる (keep)',
+  },
+  'report.keptValue': { en: 'added with its value', ja: '値ごと追加' },
+  'report.droppedCommented': {
+    en: 'commented out in the env file, left out',
+    ja: 'env ファイルでコメントアウトされているので入れなかった',
+  },
+  'report.protectedRemove.extract': {
+    en: 'protected, kept although not in the env file',
+    ja: 'protect されているので、env ファイルになくても残した',
+  },
+  'warning.unknownLine.extract': {
+    en: '%{file}: line %{line} could not be parsed and was left out of the template',
+    ja: '%{file}: %{line} 行目を解釈できなかったので、テンプレートに入れませんでした',
+  },
   'command.prune': {
     en: 'Remove keys listed by @retired in the template after confirmation.',
     ja: 'テンプレートの @retired にあるキーを、確認してから消します。',

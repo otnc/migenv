@@ -1,5 +1,5 @@
 import { colors } from 'consola/utils'
-import type { AlignResult, Warning } from '../core/index'
+import type { AlignResult, ExtractResult, Warning } from '../core/index'
 import type { Translate } from './i18n'
 
 /** One line per key that changed, followed by a note when only the order or comments did. Never includes values. */
@@ -69,4 +69,25 @@ export function warningMessages(
         return []
     }
   })
+}
+
+/** One line per key that `extract` added, removed or could not remove, and per commented-out entry it left out. Never includes values. */
+export function extractLines(result: ExtractResult, t: Translate): string[] {
+  return [
+    ...result.added.map(
+      (key) =>
+        `  ${colors.green('+')} ${key}   ${colors.dim(`(${t(result.keptValues.includes(key) ? 'report.keptValue' : 'report.added')})`)}`,
+    ),
+    ...result.removed.map(
+      (key) => `  ${colors.red('-')} ${key}   ${colors.dim(`(${t('report.removed')})`)}`,
+    ),
+    ...result.protectedSkips.map(
+      ({ key }) =>
+        `  ${colors.magenta('!')} ${key}   ${colors.dim(`(${t('report.protectedRemove.extract')})`)}`,
+    ),
+    // Shown only when the template changes, so that an up-to-date template prints nothing.
+    ...(result.changed ? result.droppedCommentedEntries : []).map(
+      (key) => `  ${colors.dim(`# ${key}   (${t('report.droppedCommented')})`)}`,
+    ),
+  ]
 }

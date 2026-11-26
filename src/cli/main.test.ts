@@ -224,3 +224,49 @@ describe('output', () => {
     expect((await cli(['--version'])).output.trim()).toMatch(/^\d+\.\d+\.\d+/)
   })
 })
+
+describe('extract', () => {
+  it('creates the template next to the env file without printing values', async () => {
+    await rm(join(dir, '.env.example'))
+    await writeFile(join(dir, '.env'), '# OLD=s3cr3t-old\nAPI_KEY=s3cr3t\nPORT=3000\n')
+    const result = await cli(['extract', '-k', 'PORT'])
+    expect(result.code).toBe(0)
+    expect(await readEnv('.env.example')).toBe('API_KEY=\nPORT=3000\n')
+    expect(result.output).toContain('+ PORT   (added with its value)')
+    expect(result.output).toContain('# OLD   (commented out in the env file, left out)')
+    expect(result.output).toContain('Created .env.example')
+    expect(result.output).not.toContain('s3cr3t')
+  })
+
+  it('adds missing keys after the key before them and keeps template values', async () => {
+    const result = await cli(['extract'])
+    expect(result.code).toBe(0)
+    expect(await readEnv('.env.example')).toBe(
+      'APP_URL=http://localhost\nOLD=\nPORT=3000\nSECRET=\n',
+    )
+    expect((await cli(['extract'])).output).toContain('.env.example is up to date')
+  })
+
+  it('passes --commented-entries through', async () => {
+    await rm(join(dir, '.env.example'))
+    await writeFile(join(dir, '.env'), '# OPTIONAL=s3cr3t\nA=1\n')
+    expect((await cli(['extract', '--commented-entries', 'empty'])).code).toBe(0)
+    expect(await readEnv('.env.example')).toBe('# OPTIONAL=\nA=\n')
+  })
+
+  it('asks before removing template keys the env file does not have', async () => {
+    const before = await readEnv('.env.example')
+    const refused = await cli(['extract', '--remove'])
+    expect(refused.code).toBe(2)
+    expect(refused.output).toContain('this operation would delete PORT')
+    expect(await readEnv('.env.example')).toBe(before)
+    expect((await cli(['extract', '--remove', '--yes'])).code).toBe(0)
+    expect(await readEnv('.env.example')).toBe('APP_URL=http://localhost\nOLD=\nSECRET=\n')
+  })
+
+  it('fails when the env file is missing', async () => {
+    const result = await cli(['extract', '.env.local'])
+    expect(result.code).toBe(2)
+    expect(result.output).toContain('.env.local does not exist')
+  })
+})
