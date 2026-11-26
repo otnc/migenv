@@ -9,7 +9,7 @@
 
 Migrate `.env` and `.dev.vars` files to match their `.example` templates without changing existing values.
 
-migenv reorders your env file to follow its template and adds the keys it is missing. **Alignment and generation never change a non-empty value, not even by one character.** To explicitly overwrite selected values, use `setValues`.
+migenv reorders your env file to follow its template and adds the keys it is missing. **Alignment and generation never change a non-empty value, not even by one character.** Comments in the template can also rename keys, retire unused ones and generate secrets for empty ones. When the env file is ahead of the template, `extract` builds the template back from it, leaving the values out.
 
 ## What it does
 
@@ -38,7 +38,7 @@ OLD_API_KEY=abc123
 SENTRY_DSN=https://key@sentry.io/1
 ```
 
-After migenv:
+After `npx migenv`:
 
 ```sh
 # App
@@ -60,7 +60,7 @@ OLD_API_KEY=abc123
 - `PORT` is added with the template's value, `3000`.
 - Every value is kept as it was. `APP_URL` does not go back to the template's `http://localhost:3000`.
 - `# SENTRY_DSN=`, commented out in the template, marks an optional key. Your value takes its place.
-- `OLD_API_KEY` is not in the template, so it is collected at the end instead of being deleted. Pass `remove: true` to delete it.
+- `OLD_API_KEY` is not in the template, so it is collected at the end instead of being deleted. Pass `--remove` (`remove: true`) to delete it.
 
 ## Install
 
@@ -70,22 +70,31 @@ npm install --save-dev migenv
 
 migenv runs on Node.js 18.3 and later. The API ships as both ESM and CommonJS, with TypeScript type definitions for each.
 
-## Usage
-
-### Command line
+## Commands
 
 ```sh
-npx migenv              # align .env with .env.example (same as "migenv align")
-npx migenv check        # exit with 1 when .env is out of date, for CI
-npx migenv diff         # show what align would change
-npx migenv prune --backup # remove @retired keys after confirmation
+npx migenv                 # align .env with .env.example (same as "migenv align")
+npx migenv check           # exit with 1 when .env is out of date, for CI
+npx migenv diff            # show what align would change
+npx migenv init            # create or align .env, then generate empty values
+npx migenv prune --backup  # remove @retired keys after confirmation
 npx migenv extract -k PORT # create or update .env.example from .env, keeping only PORT's value
 npx migenv align .env.local --remove --protect SESSION_SECRET --backup
 ```
 
+| Command | What it does |
+| --- | --- |
+| `align` | Reorder each file to follow its template and add the keys it is missing. This is the default command |
+| `check` | Exit with 1 when a file is out of date. Nothing is written |
+| `diff` | Show what `align` would change. Nothing is written |
+| `init` | Create or align each file, then generate empty values with `@generate` |
+| `fill` | Generate empty values with `@generate`, without adding keys or reordering |
+| `prune` | Remove the keys listed by `@retired`, after confirmation |
+| `extract` | Create or update each template from its env file, leaving the values out |
+
 Each file uses `<file>.example` as its template. If that is missing, migenv drops the file's last suffix and tries again: `.env.local` falls back to `.env.example`. Choose a template with `-t, --template <path>`. Paths are relative to the directory you run migenv in. Files given without a command, as in `npx migenv .env.local --create`, are aligned; a file named like a command needs it spelled out, as in `npx migenv align check`.
 
-CLI flags correspond to the options below. Use `npx migenv <command> --help` for each command's flags. `-p, --protect <keys>` accepts comma-separated keys or repeated flags. `--remove` and `prune` ask before deleting keys; pass `--yes` in CI. `check` and `diff` never write, and no command prints values.
+CLI flags correspond to the [options](#options). Use `npx migenv <command> --help` for each command's flags. `-p, --protect <keys>` and `-k, --keep-values <keys>` accept comma-separated keys or repeated flags. `--remove` and `prune` ask before deleting keys; pass `--yes` in CI. `check` and `diff` never write, and no command prints values.
 
 | Exit code | Meaning |
 | --- | --- |
@@ -95,94 +104,9 @@ CLI flags correspond to the options below. Use `npx migenv <command> --help` for
 
 Messages are in English or Japanese, chosen by `--lang <en|ja>`, then `LC_ALL`, `LC_MESSAGES` and `LANG`.
 
-### Rewrite a file
+## Template directives
 
-Pass the env file and its template to `migrateFile` from `migenv/node`.
-
-```ts
-import { migrateFile } from 'migenv/node'
-
-const result = await migrateFile('.env', '.env.example', {
-  remove: true,
-  protect: ['SESSION_SECRET', 'ENCRYPTION_KEY'],
-  backup: true,
-})
-
-console.log(result.added) // keys added from the template
-console.log(result.removed) // keys deleted by remove: true
-console.log(result.backupPath) // where the original content was saved
-```
-
-The new content goes to a temporary file in the same directory, which then replaces the original, so a crash never leaves a half-written file. An existing file keeps its permissions, and new files and backups are created with mode `0o600`. When the result is the same as before, neither the file nor its timestamp is touched.
-
-### Align strings
-
-When there is no file to work on, pass strings to `align` from `migenv`. It uses no Node.js API.
-
-```ts
-import { align } from 'migenv'
-
-const result = align(currentText, templateText, { remove: true })
-result.text // the aligned content
-result.changed // true when it differs from currentText
-```
-
-### Set values explicitly
-
-`setValues` overwrites selected keys, including non-empty values. Pass a `ReadonlyMap<string, string>` containing raw env syntax after `=`, including any quotes and inline comments. Values are not decoded or automatically escaped, so `new Map([['LABEL', '"hello # world"']])` writes `LABEL="hello # world"`.
-
-```ts
-import { setValues } from 'migenv'
-
-const result = setValues(currentText, new Map([
-  ['ORIGIN', 'https://example.com'],
-  ['LABEL', '"hello # world"'],
-]), { protect: ['SESSION_SECRET'] })
-
-result.text    // updated env content
-result.updated // existing keys whose raw values changed
-result.added   // missing keys added in map order
-result.skipped // protected keys, or missing keys with add: false
-```
-
-Unrelated lines, comments, BOM, mixed line endings and the existing final-newline style stay intact. Updated entries keep their key prefix, including `export` and spacing before `=`; their entire raw value is replaced. Missing keys are appended using the current file's line ending (LF for an empty file), or inserted before the first unparseable line. Set `add: false` to update existing keys only.
-
-All occurrences of a requested key are updated together so a later duplicate cannot hide an update. `duplicates: 'first'` and `'last'` both keep and update every occurrence; `'error'` rejects duplicate keys. If `protect` matches any occurrence, the entire key is skipped. Protection also prevents adding a missing key. `strict: true` rejects unparseable lines; otherwise they are kept with warnings. Other alignment and file options are ignored.
-
-Quoted multiline values are supported. Invalid keys, unclosed quotes and raw values that introduce extra entries throw `INVALID_VALUE`, with no values in the message. If combining valid entries would change how neighboring quoted values read, the original text is returned with an `ambiguous-quote` warning and every requested key in `skipped`. Reapplying the same values changes nothing. For file or remote operations, pass the returned text to your existing write operation; `writeFileAtomic` is available from `migenv/node`.
-
-### Check without rewriting
-
-`diff` reports the differences and changes nothing, which is handy for catching drift in CI.
-
-```ts
-import { diff } from 'migenv'
-
-const report = diff(currentText, templateText)
-// { missing: ['PORT'], empty: [], extra: ['OLD_API_KEY'], retired: [], orderDiffers: true }
-```
-
-### Create a template from an env file
-
-`extract` works in the other direction: it builds the template from your env file. When you add a key to `.env`, `npx migenv extract` adds it to `.env.example` too.
-
-```ts
-import { extract } from 'migenv'
-import { extractFile } from 'migenv/node'
-
-extract('# Server\nPORT=3000\nAPI_KEY=sk-live-1\n# OLD_KEY=sk-old\n', undefined, {
-  keepValues: ['PORT'],
-}).text
-// => '# Server\nPORT=3000\nAPI_KEY=\n'
-
-await extractFile('.env', '.env.example', { keepValues: ['PORT', 'NODE_ENV'] })
-```
-
-Values are left empty unless `keepValues` (`-k, --keep-values` on the command line) names the key. Inline comments and lines that cannot be parsed are left out, because they can hold parts of a value. Other comments and blank lines are copied. Commented-out entries such as `# OLD_KEY=sk-old` often hold real values, so they are left out by default and listed in `result.droppedCommentedEntries`. Set `commentedEntries: 'empty'` (`--commented-entries empty`) to write them as `# OLD_KEY=`, which templates use for optional keys, or `'keep'` to copy them as they are.
-
-When the template already exists, its lines are never changed. Each key it lacks is inserted after the key that comes before it in the env file, together with the comment lines directly above it; a key with no known key before it goes at the end. Keys the template lists in `@retired` or `@renamed-from` are not added back. `remove: true` deletes template entries that the env file does not have, except protected ones, and the CLI asks before deleting.
-
-The CLI writes to `<file>.example`, or to the first existing template found as described under "Command line", or to `--template`. A new template is created with mode `0o644`; the env file is only read. `extractFile` supports `backup`, `backupDir` and `dryRun`, and returns `added`, `removed`, `keptValues`, `droppedCommentedEntries`, `written` and `created`.
+Comments in the template tell migenv about renamed keys, retired keys and values to generate. Each directive also accepts the `@migenv` prefix, as in `# @migenv renamed-from GOOGLE_ID`. Malformed or unsupported directives produce `invalid-directive` warnings with line numbers; their arguments are never shown.
 
 ### Rename keys
 
@@ -222,8 +146,6 @@ await pruneFile('.env', '.env.example', { backup: true })
 
 `pruneFile` adds the same file metadata as `migrateFile` and uses atomic writes. It supports `dryRun`, `backup`, `backupDir` and `strict` for the current file. It never creates a missing file and ignores other alignment options.
 
-Both directives also accept the `@migenv` prefix, as in `# @migenv renamed-from GOOGLE_ID` and `# @migenv retired REGISTRATION`. Malformed or unsupported directives produce `invalid-directive` warnings with line numbers; their arguments are never shown.
-
 ### Generate empty values
 
 Place `@generate` immediately above an empty key in the template:
@@ -239,7 +161,7 @@ ENCRYPTION_KEY=
 INSTANCE_ID=
 ```
 
-`hex` and unpadded `base64url` accept a byte length from 1 to 65536 (default 32). `uuid` produces a UUID v4 and takes no argument. Built-ins apply only to the next key. `@migenv generate` also works.
+`hex` and unpadded `base64url` accept a byte length from 1 to 65536 (default 32). `uuid` produces a UUID v4 and takes no argument. Built-ins apply only to the next key.
 
 ```sh
 npx migenv fill           # fill existing empty keys, preserving layout
@@ -273,14 +195,119 @@ const result = fill('# @generate pair\nPUBLIC_KEY=\nPRIVATE_KEY=\n', {
 
 Generated values must be non-empty single-line strings. Spaces and comment characters are quoted; values containing every supported quote delimiter or ending in a backslash are rejected. Generation errors use `GENERATION_FAILED`, omitting generated values and original exceptions. Generation completes before any file write or backup.
 
+## Build a template from an env file
+
+`extract` works in the other direction: it builds the template from your env file. When you add a key to `.env`, `npx migenv extract` adds it to `.env.example` too.
+
+```ts
+import { extract } from 'migenv'
+import { extractFile } from 'migenv/node'
+
+extract('# Server\nPORT=3000\nAPI_KEY=sk-live-1\n# OLD_KEY=sk-old\n', undefined, {
+  keepValues: ['PORT'],
+}).text
+// => '# Server\nPORT=3000\nAPI_KEY=\n'
+
+await extractFile('.env', '.env.example', { keepValues: ['PORT', 'NODE_ENV'] })
+```
+
+Values are left empty unless `keepValues` (`-k, --keep-values`) names the key. Inline comments and lines that cannot be parsed are left out, because they can hold parts of a value. Other comments and blank lines are copied.
+
+Commented-out entries such as `# OLD_KEY=sk-old` often hold real values, so they are left out by default and listed in `result.droppedCommentedEntries`. Set `commentedEntries: 'empty'` (`--commented-entries empty`) to write them as `# OLD_KEY=`, which templates use for optional keys, or `'keep'` to copy them as they are.
+
+When the template already exists, its lines are never changed. Each key it lacks is inserted after the key that comes before it in the env file, together with the comment lines directly above it; a key with no known key before it goes at the end. Keys the template lists in `@retired` or `@renamed-from` are not added back. `remove: true` deletes template entries that the env file does not have, except protected ones, and the CLI asks before deleting.
+
+The CLI writes to `<file>.example`, or to the first existing template found as described under [Commands](#commands), or to `--template`. A new template is created with mode `0o644`; the env file is only read. `extractFile` supports `backup`, `backupDir` and `dryRun`, and returns `added`, `removed`, `keptValues`, `droppedCommentedEntries`, `written` and `created`.
+
+## Library
+
+The CLI is built on these functions. `migenv` works on strings and uses no Node.js API; `migenv/node` reads and writes files.
+
+| Function | Entry | What it does |
+| --- | --- | --- |
+| `align` / `migrateFile` | `migenv` / `migenv/node` | Align with the template, as `migenv align` does |
+| `diff` | `migenv` | Report what `align` would change |
+| `setValues` | `migenv` | Overwrite selected values on purpose |
+| `prune` / `pruneFile` | `migenv` / `migenv/node` | Remove `@retired` keys |
+| `fill` / `fillFile` | `migenv` / `migenv/node` | Generate empty values |
+| `extract` / `extractFile` | `migenv` / `migenv/node` | Build a template from an env file |
+| `writeFileAtomic` | `migenv/node` | Replace a file without leaving it half written |
+
+### Rewrite a file
+
+Pass the env file and its template to `migrateFile` from `migenv/node`.
+
+```ts
+import { migrateFile } from 'migenv/node'
+
+const result = await migrateFile('.env', '.env.example', {
+  remove: true,
+  protect: ['SESSION_SECRET', 'ENCRYPTION_KEY'],
+  backup: true,
+})
+
+console.log(result.added) // keys added from the template
+console.log(result.removed) // keys deleted by remove: true
+console.log(result.backupPath) // where the original content was saved
+```
+
+The new content goes to a temporary file in the same directory, which then replaces the original, so a crash never leaves a half-written file. An existing file keeps its permissions, and new files and backups are created with mode `0o600`. When the result is the same as before, neither the file nor its timestamp is touched.
+
+### Align strings
+
+When there is no file to work on, pass strings to `align` from `migenv`.
+
+```ts
+import { align } from 'migenv'
+
+const result = align(currentText, templateText, { remove: true })
+result.text // the aligned content
+result.changed // true when it differs from currentText
+```
+
+### Check without rewriting
+
+`diff` reports the differences and changes nothing, which is handy for catching drift in CI.
+
+```ts
+import { diff } from 'migenv'
+
+const report = diff(currentText, templateText)
+// { missing: ['PORT'], empty: [], extra: ['OLD_API_KEY'], retired: [], orderDiffers: true }
+```
+
+### Set values explicitly
+
+`setValues` overwrites selected keys, including non-empty values. Pass a `ReadonlyMap<string, string>` containing raw env syntax after `=`, including any quotes and inline comments. Values are not decoded or automatically escaped, so `new Map([['LABEL', '"hello # world"']])` writes `LABEL="hello # world"`.
+
+```ts
+import { setValues } from 'migenv'
+
+const result = setValues(currentText, new Map([
+  ['ORIGIN', 'https://example.com'],
+  ['LABEL', '"hello # world"'],
+]), { protect: ['SESSION_SECRET'] })
+
+result.text    // updated env content
+result.updated // existing keys whose raw values changed
+result.added   // missing keys added in map order
+result.skipped // protected keys, or missing keys with add: false
+```
+
+Unrelated lines, comments, BOM, mixed line endings and the existing final-newline style stay intact. Updated entries keep their key prefix, including `export` and spacing before `=`; their entire raw value is replaced. Missing keys are appended using the current file's line ending (LF for an empty file), or inserted before the first unparseable line. Set `add: false` to update existing keys only.
+
+All occurrences of a requested key are updated together so a later duplicate cannot hide an update. `duplicates: 'first'` and `'last'` both keep and update every occurrence; `'error'` rejects duplicate keys. If `protect` matches any occurrence, the entire key is skipped. Protection also prevents adding a missing key. `strict: true` rejects unparseable lines; otherwise they are kept with warnings. Other alignment and file options are ignored.
+
+Quoted multiline values are supported. Invalid keys, unclosed quotes and raw values that introduce extra entries throw `INVALID_VALUE`, with no values in the message. If combining valid entries would change how neighboring quoted values read, the original text is returned with an `ambiguous-quote` warning and every requested key in `skipped`. Reapplying the same values changes nothing. For file or remote operations, pass the returned text to your existing write operation; `writeFileAtomic` is available from `migenv/node`.
+
 ## Options
 
-`align`, `migrateFile` and `diff` take the same options object as their last argument. Every option is optional.
+Functions that take options take the same options object as their last argument and ignore the options they do not use. Every option is optional.
 
 | Option | Default | Meaning |
 | --- | --- | --- |
 | `add` | `true` | Add keys that the template has and your file lacks, at the template's position |
-| `remove` | `false` | Delete keys that the template does not have. When `false`, they are kept at the end |
+| `remove` | `false` | Delete keys that the template does not have. When `false`, they are kept at the end. `extract` deletes template keys that the env file does not have |
 | `rename` | `true` | Move values from keys named by `@renamed-from` when the destination is missing or empty |
 | `fill` | `false` | Generate empty values after alignment using the template's `@generate` directives |
 | `generators` | `{}` | Custom synchronous generators, overriding built-ins with the same name |
