@@ -62,3 +62,30 @@ describe('resolveOptions', () => {
     )
   })
 })
+
+describe('extract options', () => {
+  it('defaults to dropping commented-out entries and keeping no values', () => {
+    const options = resolveOptions()
+    expect(options.commentedEntries).toBe('remove')
+    expect(options.isValueKept('PORT', '3000')).toBe(false)
+  })
+
+  it('combines keepValues from every layer, separately from protect', () => {
+    const options = resolveOptions(
+      { keepValues: ['PORT'] },
+      { keepValues: (key) => key.startsWith('PUBLIC_') },
+    )
+    expect(options.isValueKept('PORT', '')).toBe(true)
+    expect(options.isValueKept('PUBLIC_URL', '')).toBe(true)
+    expect(options.isProtected('PORT', '')).toBe(false)
+  })
+
+  it.each<object>([{ commentedEntries: 'drop' }, { keepValues: 'PORT' }])(
+    'rejects %o',
+    (options) => {
+      expect(() => resolveOptions(options as unknown as MigenvOptions)).toThrow(
+        expect.objectContaining({ code: 'INVALID_OPTION' }),
+      )
+    },
+  )
+})

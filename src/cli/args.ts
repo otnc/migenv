@@ -38,6 +38,20 @@ const OPTION_FLAGS: readonly FlagSpec[] = [
   { flag: 'remove', option: 'remove', type: 'boolean', description: 'arg.remove' },
   { flag: 'protect', option: 'protect', type: 'string', alias: 'p', description: 'arg.protect' },
   {
+    flag: 'keep-values',
+    option: 'keepValues',
+    type: 'string',
+    alias: 'k',
+    description: 'arg.keepValues',
+  },
+  {
+    flag: 'commented-entries',
+    option: 'commentedEntries',
+    type: 'enum',
+    choices: ['remove', 'empty', 'keep'],
+    description: 'arg.commentedEntries',
+  },
+  {
     flag: 'reorder',
     option: 'reorder',
     type: 'boolean',
@@ -78,11 +92,45 @@ const OPTION_FLAGS: readonly FlagSpec[] = [
   { flag: 'dry-run', option: 'dryRun', type: 'boolean', writes: true, description: 'arg.dryRun' },
 ]
 
+type Operation = 'align' | 'prune' | 'fill' | 'extract'
+
+const EXTRACT_ONLY: readonly (keyof MigenvOptions)[] = ['keepValues', 'commentedEntries']
+
+const supports = (operation: Operation, option: keyof MigenvOptions): boolean => {
+  switch (operation) {
+    case 'align':
+      return !EXTRACT_ONLY.includes(option)
+    case 'prune':
+      return ['protect', 'strict', 'backup', 'backupDir', 'dryRun'].includes(option)
+    case 'fill':
+      return ['protect', 'strict', 'duplicates', 'backup', 'backupDir', 'dryRun'].includes(option)
+    case 'extract':
+      return [
+        ...EXTRACT_ONLY,
+        'remove',
+        'protect',
+        'strict',
+        'backup',
+        'backupDir',
+        'dryRun',
+      ].includes(option)
+  }
+}
+
+/** Options given as a comma-separated list or by repeating the flag. */
+const LIST_FLAGS: readonly {
+  readonly option: 'protect' | 'keepValues'
+  readonly names: readonly string[]
+}[] = [
+  { option: 'protect', names: ['--protect', '-p'] },
+  { option: 'keepValues', names: ['--keep-values', '-k'] },
+]
+
 /** citty argument definitions for a command, restricted to the operations it supports. */
 export function commandArgs(
   t: Translate,
   writing: boolean,
-  operation: 'align' | 'prune' | 'fill' = 'align',
+  operation: Operation = 'align',
 ): ArgsDef {
   const args: ArgsDef = {
     files: { type: 'positional', required: false, description: t('arg.files') },
@@ -93,16 +141,7 @@ export function commandArgs(
     args.yes = { type: 'boolean', alias: 'y', description: t('arg.yes') }
 
   for (const spec of OPTION_FLAGS) {
-    if (
-      operation === 'prune' &&
-      !['protect', 'strict', 'backup', 'backupDir', 'dryRun'].includes(spec.option)
-    )
-      continue
-    if (
-      operation === 'fill' &&
-      !['protect', 'strict', 'duplicates', 'backup', 'backupDir', 'dryRun'].includes(spec.option)
-    )
-      continue
+    if (!supports(operation, spec.option)) continue
     if (spec.writes === true && !writing) continue
     const description = t(spec.description)
     switch (spec.type) {
@@ -133,18 +172,21 @@ export function commandArgs(
 
 /**
  * Turns parsed flags into `MigenvOptions`. Flags that were not given stay `undefined`, so `resolveOptions` fills in the defaults.
- * `rawArgs` is needed because citty keeps only the last of repeated `--protect` flags.
+ * `rawArgs` is needed because citty keeps only the last of repeated `--protect` and `--keep-values` flags.
  */
 export function toMigenvOptions(args: ParsedArgs, rawArgs: readonly string[]): MigenvOptions {
-  const protect = flagValues(rawArgs, ['--protect', '-p']).flatMap((value) =>
-    value
-      .split(',')
-      .map((key) => key.trim())
-      .filter((key) => key !== ''),
-  )
-  const options: Record<string, unknown> = protect.length > 0 ? { protect } : {}
+  const options: Record<string, unknown> = {}
+  for (const { option, names } of LIST_FLAGS) {
+    const keys = flagValues(rawArgs, names).flatMap((value) =>
+      value
+        .split(',')
+        .map((key) => key.trim())
+        .filter((key) => key !== ''),
+    )
+    if (keys.length > 0) options[option] = keys
+  }
   for (const spec of OPTION_FLAGS) {
-    if (spec.option === 'protect') continue
+    if (LIST_FLAGS.some(({ option }) => option === spec.option)) continue
     const value = args[spec.flag]
     if (value !== undefined) options[spec.option] = value
   }

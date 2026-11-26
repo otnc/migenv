@@ -18,6 +18,8 @@ import { fillFromTemplate } from '../core/fill'
 import {
   type AlignResult,
   align,
+  type ExtractResult,
+  extract,
   MigenvError,
   type MigenvOptions,
   resolveOptions,
@@ -37,6 +39,8 @@ export interface MigrateFileResult extends AlignResult {
 
 /** Env files hold secrets, so new files and backups are readable by the owner only. */
 const PRIVATE_MODE = 0o600
+/** Templates hold no secrets and are committed, so a new one gets the usual mode for source files. */
+const TEMPLATE_MODE = 0o644
 const RENAME_RETRIES = 5
 
 /**
@@ -150,6 +154,42 @@ export const fillFile = async (
   }
 }
 
+export interface ExtractFileResult extends ExtractResult {
+  /** The env file the template was built from. */
+  readonly file: string
+  readonly template: string
+  /** Whether the template was written. `false` when nothing changed or with `dryRun: true`. */
+  readonly written: boolean
+  /** Whether the template did not exist and was created. */
+  readonly created: boolean
+  /** Where the original template was copied with `backup: true`; `undefined` when no backup was made. */
+  readonly backupPath: string | undefined
+}
+
+/**
+ * Builds or updates the template at `template` from the env file at `file` with `extract`, creating the template when it does not exist. The env file is only read. Supports `keepValues`, `commentedEntries`, `remove`, `protect`, `strict`, `backup`, `backupDir` and `dryRun`.
+ * @throws {MigenvError} `FILE_NOT_FOUND` when `file` does not exist, plus the errors of `extract`.
+ * @example
+ * const result = await extractFile('.env', '.env.example', { keepValues: ['PORT', 'NODE_ENV'] })
+ * console.log(result.added, result.droppedCommentedEntries)
+ */
+export const extractFile = async (
+  file: string,
+  template: string,
+  options?: MigenvOptions,
+): Promise<ExtractFileResult> => {
+  const { dryRun, backup, backupDir } = resolveOptions(options)
+  const current = await unlessMissing(readFile(file, 'utf8'), undefined)
+  if (current === undefined) throw new MigenvError('FILE_NOT_FOUND', `${file} does not exist.`)
+  const templateText = await unlessMissing(readFile(template, 'utf8'), undefined)
+  const result = extract(current, templateText, options)
+  const created = templateText === undefined
+  const written = !dryRun && (created || result.changed)
+  const backupPath = written && backup && !created ? await backUp(template, backupDir) : undefined
+  if (written) await replaceFile(template, result.text, TEMPLATE_MODE)
+  return { ...result, file, template, written, created: created && written, backupPath }
+}
+
 /**
  * Replaces the file at `path` with `text` without ever leaving it half written: the text goes to a temporary file in the same directory, which is then renamed over `path`.
  * An existing file keeps its permissions, a symbolic link keeps pointing at the file it points to, and a new file is created with mode `0o600`.
@@ -157,10 +197,14 @@ export const fillFile = async (
  * await writeFileAtomic('.env', 'API_KEY=abc\n')
  */
 export async function writeFileAtomic(path: string, text: string): Promise<void> {
+  await replaceFile(path, text, PRIVATE_MODE)
+}
+
+async function replaceFile(path: string, text: string, newFileMode: number): Promise<void> {
   const target = await unlessMissing(realpath(path), path)
   const mode = await unlessMissing(
     stat(target).then((stats) => stats.mode & 0o777),
-    PRIVATE_MODE,
+    newFileMode,
   )
   const temp = join(dirname(target), `.${basename(target)}.${randomBytes(6).toString('hex')}.tmp`)
   try {
