@@ -79,6 +79,7 @@ npx migenv              # align .env with .env.example (same as "migenv align")
 npx migenv check        # exit with 1 when .env is out of date, for CI
 npx migenv diff         # show what align would change
 npx migenv prune --backup # remove @retired keys after confirmation
+npx migenv extract -k PORT # create or update .env.example from .env, keeping only PORT's value
 npx migenv align .env.local --remove --protect SESSION_SECRET --backup
 ```
 
@@ -160,6 +161,28 @@ import { diff } from 'migenv'
 const report = diff(currentText, templateText)
 // { missing: ['PORT'], empty: [], extra: ['OLD_API_KEY'], retired: [], orderDiffers: true }
 ```
+
+### Create a template from an env file
+
+`extract` works in the other direction: it builds the template from your env file. When you add a key to `.env`, `npx migenv extract` adds it to `.env.example` too.
+
+```ts
+import { extract } from 'migenv'
+import { extractFile } from 'migenv/node'
+
+extract('# Server\nPORT=3000\nAPI_KEY=sk-live-1\n# OLD_KEY=sk-old\n', undefined, {
+  keepValues: ['PORT'],
+}).text
+// => '# Server\nPORT=3000\nAPI_KEY=\n'
+
+await extractFile('.env', '.env.example', { keepValues: ['PORT', 'NODE_ENV'] })
+```
+
+Values are left empty unless `keepValues` (`-k, --keep-values` on the command line) names the key. Inline comments and lines that cannot be parsed are left out, because they can hold parts of a value. Other comments and blank lines are copied. Commented-out entries such as `# OLD_KEY=sk-old` often hold real values, so they are left out by default and listed in `result.droppedCommentedEntries`. Set `commentedEntries: 'empty'` (`--commented-entries empty`) to write them as `# OLD_KEY=`, which templates use for optional keys, or `'keep'` to copy them as they are.
+
+When the template already exists, its lines are never changed. Each key it lacks is inserted after the key that comes before it in the env file, together with the comment lines directly above it; a key with no known key before it goes at the end. Keys the template lists in `@retired` or `@renamed-from` are not added back. `remove: true` deletes template entries that the env file does not have, except protected ones, and the CLI asks before deleting.
+
+The CLI writes to `<file>.example`, or to the first existing template found as described under "Command line", or to `--template`. A new template is created with mode `0o644`; the env file is only read. `extractFile` supports `backup`, `backupDir` and `dryRun`, and returns `added`, `removed`, `keptValues`, `droppedCommentedEntries`, `written` and `created`.
 
 ### Rename keys
 
@@ -262,6 +285,8 @@ Generated values must be non-empty single-line strings. Spaces and comment chara
 | `fill` | `false` | Generate empty values after alignment using the template's `@generate` directives |
 | `generators` | `{}` | Custom synchronous generators, overriding built-ins with the same name |
 | `protect` | `[]` | Keys that are never changed. `*` matches anything, as in `'*_SECRET'`. A `(key, rawValue) => boolean` function also works |
+| `keepValues` | `[]` | `extract` only: keys whose values are copied into the template, in the same form as `protect` |
+| `commentedEntries` | `'remove'` | `extract` only: commented-out entries such as `# KEY=value` are left out (`'remove'`), written as `# KEY=` (`'empty'`) or copied as they are (`'keep'`) |
 | `reorder` | `true` | Follow the template's order and comments. When `false`, keep your order and append the added keys |
 | `useTemplateDefaults` | `true` | Use the template's value when yours is empty |
 | `extrasHeader` | `'# ---- Not in template (review manually) ----'` | Comment placed above the keys that are not in the template, or `false` for none |

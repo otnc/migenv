@@ -47,9 +47,10 @@ The package has two library entry points and a command, and every file you add m
 | `src/core/options.ts` | `migenv` | `MigenvOptions`, `resolveOptions` and the `protect` patterns |
 | `src/core/align.ts` | `migenv` | `align`: rewrites a file to follow its template |
 | `src/core/diff.ts` | `migenv` | `diff`: reports what `align` would change, without changing it |
+| `src/core/extract.ts` | `migenv` | `extract`: builds or updates a template from an env file, leaving values out |
 | `src/core/errors.ts` | `migenv` | `MigenvError` and its codes |
-| `src/node/file.ts` | `migenv/node` | `migrateFile` and `writeFileAtomic` |
-| `src/cli/main.ts` | `migenv` command | The `align`, `check` and `diff` commands, built with citty |
+| `src/node/file.ts` | `migenv/node` | `migrateFile`, `extractFile` and `writeFileAtomic` |
+| `src/cli/main.ts` | `migenv` command | The `align`, `check`, `diff`, `prune`, `fill`, `init` and `extract` commands, built with citty |
 | `src/cli/messages.i18n.ts` | `migenv` command | Every message the CLI prints, in English and Japanese |
 
 `src/core` only works on strings and must not import any Node API, so it stays usable outside Node. File system code belongs in `src/node`. The CLI in `src/cli` ships as ESM only, because citty is ESM only, and takes everything from the process through `CliIo` so that tests can run it in a temporary directory.
@@ -61,6 +62,7 @@ These are the promises migenv makes to its users. A change that breaks one of th
 - **Alignment and generation never change non-empty values.** `parse` does not decode values; it keeps each line's text as `raw` so that `stringify(parse(text)) === text` holds for any input, and `align` copies current lines as they are. Only `setValues` explicitly overwrites requested values; it still respects `protect` and preserves unrelated entries.
 - **`align` is idempotent.** Running it on its own output changes nothing.
 - **Lines that cannot be parsed are kept**, never dropped. They become `unknown` nodes and a warning.
+- **Values never reach a template.** `extract` empties every value unless `keepValues` names the key, and leaves out inline comments, unparsable lines and, by default, commented-out entries.
 - **Values never appear in messages.** Warnings and errors name keys and line numbers only, because env files hold secrets.
 - **Callers check `error.code`, not `instanceof MigenvError`.** The ESM and CJS builds each define the class, so `instanceof` fails when both are loaded.
 

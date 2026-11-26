@@ -119,6 +119,7 @@ npx migenv              # align .env with .env.example (same as "migenv align")
 npx migenv check        # exit with 1 when .env is out of date, for CI
 npx migenv diff         # show what align would change
 npx migenv prune --backup # remove @retired keys after confirmation
+npx migenv extract -k PORT # create or update .env.example from .env, keeping only PORT's value
 npx migenv align .env.local --remove --protect SESSION_SECRET --backup
 ```
 
@@ -163,6 +164,7 @@ npx migenv              # .env を .env.example に揃える ("migenv align" と
 npx migenv check        # .env がずれていれば exit 1 で終える。CI 用
 npx migenv diff         # align で何が変わるかを表示する
 npx migenv prune --backup # @retired のキーを、確認してから消す
+npx migenv extract -k PORT # .env から .env.example を作成・更新する。値を残すのは PORT だけ
 npx migenv align .env.local --remove --protect SESSION_SECRET --backup
 ```
 
@@ -299,6 +301,53 @@ import { diff } from 'migenv'
 const report = diff(currentText, templateText)
 // { missing: ['PORT'], empty: [], extra: ['OLD_API_KEY'], retired: [], orderDiffers: true }
 ```
+:::
+
+:::kiritan{locale=en}
+### Create a template from an env file
+
+`extract` works in the other direction: it builds the template from your env file. When you add a key to `.env`, `npx migenv extract` adds it to `.env.example` too.
+
+```ts
+import { extract } from 'migenv'
+import { extractFile } from 'migenv/node'
+
+extract('# Server\nPORT=3000\nAPI_KEY=sk-live-1\n# OLD_KEY=sk-old\n', undefined, {
+  keepValues: ['PORT'],
+}).text
+// => '# Server\nPORT=3000\nAPI_KEY=\n'
+
+await extractFile('.env', '.env.example', { keepValues: ['PORT', 'NODE_ENV'] })
+```
+
+Values are left empty unless `keepValues` (`-k, --keep-values` on the command line) names the key. Inline comments and lines that cannot be parsed are left out, because they can hold parts of a value. Other comments and blank lines are copied. Commented-out entries such as `# OLD_KEY=sk-old` often hold real values, so they are left out by default and listed in `result.droppedCommentedEntries`. Set `commentedEntries: 'empty'` (`--commented-entries empty`) to write them as `# OLD_KEY=`, which templates use for optional keys, or `'keep'` to copy them as they are.
+
+When the template already exists, its lines are never changed. Each key it lacks is inserted after the key that comes before it in the env file, together with the comment lines directly above it; a key with no known key before it goes at the end. Keys the template lists in `@retired` or `@renamed-from` are not added back. `remove: true` deletes template entries that the env file does not have, except protected ones, and the CLI asks before deleting.
+
+The CLI writes to `<file>.example`, or to the first existing template found as described under "Command line", or to `--template`. A new template is created with mode `0o644`; the env file is only read. `extractFile` supports `backup`, `backupDir` and `dryRun`, and returns `added`, `removed`, `keptValues`, `droppedCommentedEntries`, `written` and `created`.
+:::
+:::kiritan{locale=ja}
+### env ファイルからテンプレートを作る
+
+`extract` は逆向きに、env ファイルからテンプレートを作ります。`.env` にキーを足したら、`npx migenv extract` で `.env.example` にも足せます。
+
+```ts
+import { extract } from 'migenv'
+import { extractFile } from 'migenv/node'
+
+extract('# Server\nPORT=3000\nAPI_KEY=sk-live-1\n# OLD_KEY=sk-old\n', undefined, {
+  keepValues: ['PORT'],
+}).text
+// => '# Server\nPORT=3000\nAPI_KEY=\n'
+
+await extractFile('.env', '.env.example', { keepValues: ['PORT', 'NODE_ENV'] })
+```
+
+値は空にします。値を残すキーは `keepValues` (コマンドラインでは `-k, --keep-values`) で指定します。行末コメントと解釈できない行は、値の一部が入っていることがあるので入れません。それ以外のコメントと空行はコピーします。`# OLD_KEY=sk-old` のようにコメントアウトされた行には本物の値が残っていることが多いので、既定では入れずに `result.droppedCommentedEntries` に記録します。`commentedEntries: 'empty'` (`--commented-entries empty`) なら、省略できるキーを示すときの書き方の `# OLD_KEY=` として入れます。`'keep'` ならそのまま入れます。
+
+テンプレートがすでにあるときは、その行を一切変えません。テンプレートにないキーは、env ファイルでその直前にあるキーの後ろに、すぐ上のコメント行と一緒に入れます。直前にテンプレートのキーがなければ末尾に入れます。テンプレートの `@retired` や `@renamed-from` にあるキーは足し戻しません。`remove: true` なら、env ファイルにないテンプレートのキーを消します。保護されたキーは消さず、CLI は消す前に確認します。
+
+CLI の書き込み先は `<ファイル>.example` です。「コマンドライン」で説明した順に探して見つかったテンプレートがあればそれを使い、`--template` を渡せばそれを使います。新しいテンプレートは `0o644` で作り、env ファイルは読むだけです。`extractFile` は `backup`、`backupDir`、`dryRun` に対応し、`added`、`removed`、`keptValues`、`droppedCommentedEntries`、`written`、`created` を返します。
 :::
 
 :::kiritan{locale=en}
@@ -498,6 +547,8 @@ const result = fill('# @generate pair\nPUBLIC_KEY=\nPRIVATE_KEY=\n', {
 | `fill` | `false` | Generate empty values after alignment using the template's `@generate` directives |
 | `generators` | `{}` | Custom synchronous generators, overriding built-ins with the same name |
 | `protect` | `[]` | Keys that are never changed. `*` matches anything, as in `'*_SECRET'`. A `(key, rawValue) => boolean` function also works |
+| `keepValues` | `[]` | `extract` only: keys whose values are copied into the template, in the same form as `protect` |
+| `commentedEntries` | `'remove'` | `extract` only: commented-out entries such as `# KEY=value` are left out (`'remove'`), written as `# KEY=` (`'empty'`) or copied as they are (`'keep'`) |
 | `reorder` | `true` | Follow the template's order and comments. When `false`, keep your order and append the added keys |
 | `useTemplateDefaults` | `true` | Use the template's value when yours is empty |
 | `extrasHeader` | `'# ---- Not in template (review manually) ----'` | Comment placed above the keys that are not in the template, or `false` for none |
@@ -524,6 +575,8 @@ const result = fill('# @generate pair\nPUBLIC_KEY=\nPRIVATE_KEY=\n', {
 | `fill` | `false` | 並びを揃えたあと、テンプレートの `@generate` に従って空の値を生成する |
 | `generators` | `{}` | 独自の同期生成器。同名の組み込み生成器より優先する |
 | `protect` | `[]` | 絶対に変えないキー。`'*_SECRET'` のように `*` が使える。`(key, rawValue) => boolean` の関数も渡せる |
+| `keepValues` | `[]` | `extract` だけ: 値をテンプレートにコピーするキー。指定のしかたは `protect` と同じ |
+| `commentedEntries` | `'remove'` | `extract` だけ: `# KEY=value` のようにコメントアウトされた行を、入れない (`'remove'`)、`# KEY=` として入れる (`'empty'`)、そのまま入れる (`'keep'`) |
 | `reorder` | `true` | 並びとコメントをテンプレートに合わせる。`false` なら手元の並びのまま、足すキーを末尾に付ける |
 | `useTemplateDefaults` | `true` | 手元の値が空のとき、テンプレートの値を入れる |
 | `extrasHeader` | `'# ---- Not in template (review manually) ----'` | テンプレートにないキーの上に付ける見出し。`false` なら付けない |
