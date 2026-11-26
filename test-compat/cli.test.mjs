@@ -80,3 +80,16 @@ test('the CLI renames and prunes without printing values', async () => {
     await rm(dir, { recursive: true, force: true })
   }
 })
+
+test('the CLI extracts a template without printing values', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'migenv-compat-extract-'))
+  try {
+    await writeFile(join(dir, '.env'), 'PORT=3000\nAPI_KEY=s3cr3t\n# OLD=s3cr3t\n')
+    const result = migenv(['extract', '-k', 'PORT', '--commented-entries', 'empty'], dir)
+    assert.equal(result.status, 0)
+    assert.doesNotMatch(result.stdout + result.stderr, /s3cr3t/)
+    assert.equal(await readFile(join(dir, '.env.example'), 'utf8'), 'PORT=3000\nAPI_KEY=\n# OLD=\n')
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+})

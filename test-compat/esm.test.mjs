@@ -5,8 +5,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { align, parseDirectives, prune, fill, setValues } from 'migenv'
-import { migrateFile, pruneFile, fillFile } from 'migenv/node'
+import { align, extract, parseDirectives, prune, fill, setValues } from 'migenv'
+import { extractFile, migrateFile, pruneFile, fillFile } from 'migenv/node'
 
 const fixtures = fileURLToPath(new URL('../test/fixtures/align', import.meta.url))
 
@@ -78,6 +78,23 @@ test('migrateFile rewrites a file and backs it up through import', async () => {
     const result = await migrateFile(join(dir, '.env'), join(dir, '.env.example'), { backup: true })
     assert.equal(await readFile(join(dir, '.env'), 'utf8'), 'A=1\nB=2\n')
     assert.equal(await readFile(result.backupPath, 'utf8'), 'B=2\nA=1\n')
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+})
+
+test('extract APIs work through import', async () => {
+  const current = '# App\nPORT=3000\nAPI_KEY=secret\n# OLD=secret\n'
+  assert.equal(
+    extract(current, undefined, { keepValues: ['PORT'] }).text,
+    '# App\nPORT=3000\nAPI_KEY=\n',
+  )
+  const dir = await mkdtemp(join(tmpdir(), 'migenv-compat-extract-'))
+  try {
+    await writeFile(join(dir, 'current.env'), current)
+    const result = await extractFile(join(dir, 'current.env'), join(dir, 'template.env'))
+    assert.deepEqual(result.droppedCommentedEntries, ['OLD'])
+    assert.equal(await readFile(join(dir, 'template.env'), 'utf8'), '# App\nPORT=\nAPI_KEY=\n')
   } finally {
     await rm(dir, { recursive: true, force: true })
   }

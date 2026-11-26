@@ -3,8 +3,8 @@ const { mkdtemp, readFile, rm, writeFile } = require('node:fs/promises')
 const { tmpdir } = require('node:os')
 const { join } = require('node:path')
 const { test } = require('node:test')
-const { align, parseDirectives, prune, fill, setValues } = require('migenv')
-const { migrateFile, pruneFile, fillFile } = require('migenv/node')
+const { align, extract, parseDirectives, prune, fill, setValues } = require('migenv')
+const { extractFile, migrateFile, pruneFile, fillFile } = require('migenv/node')
 
 test('setValues works through require', () => {
   const values = new Map([
@@ -65,6 +65,23 @@ test('migrateFile rewrites a file through require', async () => {
     const result = await migrateFile(join(dir, '.env'), join(dir, '.env.example'))
     assert.deepEqual(result.added, ['B'])
     assert.equal(await readFile(join(dir, '.env'), 'utf8'), 'A=1\nB=default\n')
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+})
+
+test('extract APIs work through require', async () => {
+  const current = '# App\nPORT=3000\nAPI_KEY=secret\n# OLD=secret\n'
+  assert.equal(
+    extract(current, undefined, { keepValues: ['PORT'] }).text,
+    '# App\nPORT=3000\nAPI_KEY=\n',
+  )
+  const dir = await mkdtemp(join(tmpdir(), 'migenv-compat-extract-'))
+  try {
+    await writeFile(join(dir, 'current.env'), current)
+    const result = await extractFile(join(dir, 'current.env'), join(dir, 'template.env'))
+    assert.deepEqual(result.droppedCommentedEntries, ['OLD'])
+    assert.equal(await readFile(join(dir, 'template.env'), 'utf8'), '# App\nPORT=\nAPI_KEY=\n')
   } finally {
     await rm(dir, { recursive: true, force: true })
   }
