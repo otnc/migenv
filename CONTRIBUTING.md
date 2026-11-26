@@ -19,7 +19,7 @@ Commit `package-lock.json` along with any dependency change.
 | `npm run build` | Bundle ESM/CJS + type declarations with tsdown |
 | `npm run test` | Run the tests once with vitest (`npm run test:watch` to keep them running) |
 | `npm run test:coverage` | Run the tests with a coverage report |
-| `npm run test:compat` | Load the built `dist` through `import` and `require` with `node:test` (what CI runs on Node 18 and 20) |
+| `npm run test:compat` | Load the built `dist` through `import` and `require` with `node:test` (what CI runs on Node 18.3.0, the latest 18 and the latest 20) |
 | `npm run typecheck` | Type-check with `tsc --noEmit` |
 | `npm run format` | Format the code, writing the fixes (Prettier) |
 | `npm run format:check` | Check formatting without writing (Prettier) |

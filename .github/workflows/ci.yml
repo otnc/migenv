@@ -44,7 +44,8 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        node-version: [18, 20]
+        # 18.3.0 is the oldest version package.json supports (citty needs util.parseArgs); 18 and 20 are the latest of each line.
+        node-version: ['18.3.0', 18, 20]
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
